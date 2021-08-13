@@ -1,4 +1,7 @@
 use crate::kk_cell::{Cell, ReducePosByDigits};
+use std::fmt;
+use crate::kk_field::GameType::{KenKen, Sudoku};
+use std::collections::HashSet;
 
 #[derive(Debug,Clone)]
 pub struct Field {
@@ -277,9 +280,7 @@ impl Field {
     }
 }
 
-use std::fmt;
-use crate::kk_field::GameType::{KenKen, Sudoku};
-use std::collections::HashSet;
+
 
 
 impl fmt::Display for Field {
