@@ -47,7 +47,7 @@ for more information about Sudoku see [Sudoku Wikipedia](https://de.wikipedia.or
      * for better readability a "." might be entered between 3 position.
 
 ##Examples
- for a Sudokupuzzle
+ for a Sudoku puzzle
  ```
 Sudoku Expert level
 Sudoku

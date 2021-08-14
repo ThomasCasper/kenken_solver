@@ -1,22 +1,36 @@
+//! Module kk_input provides all functions to load a puzzle from the file system
+//!
+//! for testing purposes it also contains some "inline" puzzles
+//! To use these inline puzzles use the following "filesnames" starting with "Dim"
+//!
+//! * Dim5 - a 5x5 KenKen
+//! * Dim7 - a 7x7 KenKen from [Newdoku id: 8051833](https://newdoku.com/include/online.php?id=8051833)
+//! * Dim8 - a 8x8 KenKen from [Newdoku id: 7320085](https://newdoku.com/include/online.php?id=7320085)
+//! * Dim9 - a 9x9 KenKen from [Newdoku id: 4379825](https://newdoku.com/include/online.php?id=4379825)
+//! * Dim9a - a very "hard" KenKen, solution takes about 25 min.
+//! * DimS1 - a sample "Expert" Sudoku
+//! * Dim* - default KenKen 4x4 [Newdoku id: 7888719](https://newdoku.com/include/online.php?id=7888719)
+
 use std::fs;
 
-
+/// Function definition_from_file loads the file with the given name into
+/// a vector of strings. Each line in the file is one entry in the vector.
 pub fn definition_from_file(name: &str) -> Vec<String>{
     println!("Loading KenKen from file {}", name);
 
     let contents = fs::read_to_string(name)
         .expect("Something went wrong reading the file.");
 
-    let mut kk:Vec<String> = Vec::new();
-    for c in contents.split('\n') {
-        kk.push(c.trim().to_string())
-    }
+    let mut kk:Vec<String> =
+        contents.split('\n').map(|c| c.trim().to_string()).collect();
+
     println!("Loaded {}", kk.remove(0));
     kk
 
 }
 
-
+/// Function definition_inline copies the inline puzzle with the given name into
+/// a vector of strings. Each line in the inline puzzle is one entry in the vector.
 pub fn definition_inline(name: &str) -> Vec<String>{
     //open file file_name and read Kenken
         println!("Inline: {}", name);
@@ -174,9 +188,7 @@ pub fn definition_inline(name: &str) -> Vec<String>{
                     "3c33"],
         };
 
-        let mut kk:Vec<String> = Vec::new();
-        for c in my_kk {
-            kk.push(c.to_string())
-        }
-        kk
+
+    my_kk.iter().map(|c| c.to_string()).collect()
+
 }

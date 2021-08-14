@@ -22,7 +22,7 @@ impl ReducePosByDigits {
     /// with new_digits as digits
     /// mode: True - row, false - col
     /// line: the row or call of all cells
-    /// line_pos: the position of the "unique digits", hence the pos field ist the reverse
+    /// line_pos: the position of the "unique digits", hence the pos field is the reverse
     pub fn new(new_digits: HashSet<u32>, modus:bool, line:usize, line_pos: HashSet<usize>) -> Self {
         let mut new_pos = HashSet::<usize>::new();
         for i in 0..9 {
@@ -44,6 +44,7 @@ pub fn get_digits(val:u32) -> Vec<u32>{
     let mut v=Vec::<u32>::new();
     let mut j:u32=val;
     loop {
+        //#todo v.insert(j%10,0) - no reverse
         v.push(j % 10);
         j /= 10;
         if j==0 {break}
@@ -84,12 +85,13 @@ impl Cell {
     pub fn apply_option_to_field(&self, field: &mut Vec<u32>, option_nr: usize) -> bool {
 
         if option_nr<self.options.len() {
-            let d = get_digits(self.options[option_nr]);
+            let digits = get_digits(self.options[option_nr]);
             let mut i=0;
             for p in &self.pos {
                 field[*p] = d[i];
                 i += 1;
             }
+            //##todo self.pos.into().zip(digits.into()).for_each(|p,d| field[p]=d)
             true
         } else {false}
     }
