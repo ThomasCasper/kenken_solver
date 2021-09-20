@@ -1,13 +1,17 @@
-use crate::kk_cell::{Cell, ReducePosByDigits};
+//use crate::kk_cell::{Cell, ReducePosByDigits};
+use crate::kk_cell::{Cell};
 use std::fmt;
 use crate::kk_field::GameType::{KenKen, Sudoku};
 use std::collections::HashSet;
+use crate::kk_improve::BlackList;
+
 
 #[derive(Debug,Clone)]
 pub struct Field {
     game_type: GameType,
     dim: u32,
     field:Vec<u32>,
+    bl:BlackList,
     cells:Vec<Cell>
 }
 
@@ -30,6 +34,7 @@ impl Field {
                 game_type: of.game_type,
                 dim: of.dim,
                 field: of.field.clone(),
+                bl:of.bl.clone(),
                 cells: Vec::new(),
             }
 
@@ -39,6 +44,7 @@ impl Field {
                 game_type: KenKen,
                 dim: 0,
                 field: vec![0; 100],
+                bl: BlackList::new(),
                 cells: Vec::new(),
             }
         }
@@ -154,24 +160,14 @@ impl Field {
             }
         }
 
-        //Reduce options by eliminating unique line values
-        let mut changed: bool = true;
-
-        while changed {
-            changed = false;
-            let mut rp:Vec<ReducePosByDigits>=Vec::new();
-
-            for cell in &self.cells {
-                if let Some(frp)=cell.check_cell_on_unique_digits_per_line(){
-                    rp.push(frp);
-                }
-            };
-            if rp.len()>0 {
-                for cell in &mut self.cells {
-                    let c = cell.clean_unique_digits_from_line(&rp);
-                    changed = c || changed;
-                }
-            }
+        //initialize blacklist and apply first unique digits
+        let (_cnt, o_field,c)= self.get_new_valid_field();
+        //println!("Init: {} - {:?} - {:?}",cnt,o_field,c);
+        if let Some(of)=o_field {
+            self.field = of.field.clone();
+            self.bl = of.bl.clone();
+            self.cells = of.cells.clone();
+            self.cells.push(c.unwrap());  //add best cell to cells
         }
 
         Ok("ok")
@@ -212,66 +208,51 @@ impl Field {
     /// the cell for the net try has the shortest possible length of open options
     /// the cell for the next try is not part of the returned new field
     /// if the count is 0, no Cell will be returned
-    /// if count is 0, and a field os returned: The Kenken was solved and the returned field is the solution
+    /// if count is 0, and a field is returned: The Kenken was solved and the returned field is the solution
     /// if count is 0 and the field is None, there where no valid options left and the try was an error
 
     pub fn get_new_valid_field(&self) -> (usize, Option<Self>, Option<Cell>) {
         let mut new_field = Field::new(Some(&self));
-        let mut changed: bool = true;
-        let mut old_cells = self.cells.clone();
-        let mut min_options:usize;
-        let mut best_option: Option<Cell>=None;
+        let mut new_cells = self.cells.clone();
+        let mut ind:usize = 0;
+        let mut ind_min:usize=0;
+        let mut min_cells:usize=1000;
+        //println!("New validation: {}", new_cells.len());
+        while ind < new_cells.len() {
+            //println!("{} - {}",ind, new_cells.len());
+            let (cell_cnt, valid_cell) = new_cells.remove(ind)
+                .get_valid_cell_options(&new_field.field,&mut new_field.bl);
 
-        //loop through all cells and reduce options and complete field
-        //Returns
-        // * cleaned list of Cells in old_cells
-        // * best cell with minimal open options
-        // returns if unfulfillable options are encountered
-
-        while changed {
-            changed=false;
-            min_options=1000;
-            best_option = None;
-            let mut new_cells: Vec<Cell>= Vec::new();
-            for cell in old_cells {
-                //println!("before: {}",&new_field);
-                let rc = cell.get_valid_cell_options(&new_field.field);
-                //println!("after: {}",&new_field);
-                //println!("rc: {:?}", rc);
-                match rc.0 {
-                    // no valid options left => Error and next try
-                    0 => return(0,None,None),
-                    // only 1 option left => Add option (first) to field and set changed to true
-                    1 => {
-                        rc.1.apply_option_to_field(&mut new_field.field,0);
-                        changed=true
-                        },
-                    // greater than 1
-                    // if open options less than current min save for min options
-                    // else add cell to new_cells
-                    c => {
-
-                        if c < min_options {
-                            if let Some(bo)= best_option { new_cells.push(bo)};
-                            best_option=Some(rc.1.clone());
-                            min_options=c;
-                        } else {
-                            new_cells.push(rc.1);
-                        }
+            match cell_cnt {
+                // no valid options left => Error and next try
+                0 => return (0, None, None),
+                // only 1 option left => Add option (first) to field and restart update
+                1 => {
+                    valid_cell.apply_option_to_field(&mut new_field.field, 0);
+                    min_cells = 1000;
+                    ind = 0;
+                },
+                // more than 1 option left, add cell back to list and move to next cell
+                // if number of valid options is the new min, than save the index
+                c => {
+                    new_cells.insert(ind,valid_cell);
+                    if c<min_cells {
+                        min_cells=c;
+                        ind_min=ind;
                     }
+                    ind+=1;
                 }
             }
-            old_cells = new_cells.clone();
-            if changed && min_options<1000 {
-                // add best_option to list for next run
-                old_cells.push(best_option.clone().unwrap());
-            }
-
         }
 
-        new_field.cells = old_cells.clone();
-
-        (old_cells.len(), Some(new_field),best_option)
+        if new_cells.len()>0 {
+            let best_option= new_cells.remove(ind_min);
+            new_field.cells = new_cells.clone();
+            (new_cells.len(), Some(new_field),Some(best_option))
+        }
+        else {
+            (0,Some(new_field),None)
+        }
 
     }
 

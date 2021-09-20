@@ -68,6 +68,7 @@ use std::io;
 mod kk_cell;
 mod kk_field;
 mod kk_inputs;
+mod kk_improve;
 
 /// The main program coordinate the steps for the solution
 /// * ask user for the file name of the puzzle
@@ -93,6 +94,8 @@ fn main() {
         &kk_inputs::definition_from_file(file_name.trim())
         ).expect("Init from external definition failed");
     }
+    let dur=now.elapsed().as_millis();
+    println!("Init Duration : {}:{}:{}.{}",dur/3600000,dur/60000 % 60,dur/1000 % 60,dur % 1000 );
 
     println!("Start -\n{}",f);
     //println!("{:?}", f);
@@ -103,7 +106,7 @@ fn main() {
         None => println!("Error"),
     }
     let dur=now.elapsed().as_millis();
-    println!("Duration : {}:{}:{}.{}",dur/3600000,dur/60000 % 60,dur/1000 % 60,dur % 1000 );
+    println!("Total Duration : {}:{}:{}.{}",dur/3600000,dur/60000 % 60,dur/1000 % 60,dur % 1000 );
 
 }
 
@@ -125,7 +128,7 @@ fn kenken_solve(iteration: i32, field: Field) -> Option<Field> {
     //println!("{:?}{:?}{:?}", count,temp_field,opt);
     if count ==0 {
         // if count is zero recursion ends
-        // if field is None there was an error ==> wait that threat is killed
+        // if field is None there was an error
         // otherwise field contains the found solution
              return temp_field;
 

@@ -1,5 +1,8 @@
 use std::collections::HashSet;
+
 use permutohedron::heap_recursive;
+
+use crate::kk_improve::BlackList;
 
 #[derive(Debug,Clone)]
 pub struct Cell {
@@ -7,10 +10,12 @@ pub struct Cell {
     ops: char,
     pos:Vec<usize>,
     options: Vec<u32>,
+    pub is_onedim: bool,
+    pub is_black_listed: bool
 }
 
 
-#[derive(Debug,Clone)]
+/*#[derive(Debug,Clone)]
 pub struct ReducePosByDigits {
     pos: HashSet<usize>,
     digits: HashSet<u32>
@@ -21,7 +26,7 @@ impl ReducePosByDigits {
     /// Creates new ReducePosByDigit_Struct
     /// with new_digits as digits
     /// mode: True - row, false - col
-    /// line: the row or call of all cells
+    /// line: the row or col of all cells
     /// line_pos: the position of the "unique digits", hence the pos field is the reverse
     pub fn new(new_digits: HashSet<u32>, modus:bool, line:usize, line_pos: HashSet<usize>) -> Self {
         let mut new_pos = HashSet::<usize>::new();
@@ -37,14 +42,13 @@ impl ReducePosByDigits {
             digits : new_digits,
         }
     }
-}
+}*/
 
 
 pub fn get_digits(val:u32) -> Vec<u32>{
     let mut v=Vec::<u32>::new();
     let mut j:u32=val;
     loop {
-        //#todo v.insert(j%10,0) - no reverse
         v.push(j % 10);
         j /= 10;
         if j==0 {break}
@@ -59,11 +63,34 @@ impl Cell {
     /// use add_options_base for the initial options based on result and ops
     /// or use add_option for direct option attachment
     pub fn new(new_pos: &Vec<usize>, new_ops: char, new_res: u32) -> Self {
+
         Cell {
             ops: new_ops,
             res: new_res,
             pos: new_pos.clone(),
-            options: Vec::new()
+            options: Vec::new(),
+            is_black_listed: false,
+            //check if all positions are in one line or column, if yes
+            //the cell is one dimensional
+            is_onedim: new_pos.iter()
+                        .map(|p| p/10) //row
+                        .fold(true, |s, p| s && new_pos[0]/10==p) ||
+                        new_pos.iter()
+                        .map(|p| p%10) //column
+                        .fold(true, |s, p| s && new_pos[0]%10==p)
+        }
+    }
+
+    /// Create new Cell from existing cell with new options
+
+    pub fn new_with_options(old_cell: &Self, new_options:&Vec<u32>, new_is_black_listed: bool) -> Self {
+        Cell {
+            ops: old_cell.ops,
+            res: old_cell.res,
+            pos: old_cell.pos.clone(),
+            is_onedim: old_cell.is_onedim,
+            is_black_listed: new_is_black_listed,
+            options: new_options.clone()
         }
     }
 
@@ -86,12 +113,7 @@ impl Cell {
 
         if option_nr<self.options.len() {
             let digits = get_digits(self.options[option_nr]);
-            let mut i=0;
-            for p in &self.pos {
-                field[*p] = d[i];
-                i += 1;
-            }
-            //##todo self.pos.into().zip(digits.into()).for_each(|p,d| field[p]=d)
+            self.pos.iter().zip(digits.iter()).for_each(|(&p,&d)| field[p]=d);
             true
         } else {false}
     }
@@ -136,43 +158,60 @@ impl Cell {
         self.options.len() as u32
     }
 
-    /// Add a new option manually and return count of options in Cell
-    pub fn add_option_to_cell(&mut self, opt: u32) -> usize {
-        self.options.push(opt);
-        self.options.len()
-    }
-
-    /// Validates the options of a cell against a given field
+     /// Validates the options of a cell against a given field
     /// returns a new cell with all valid options and a count of the valid options
 
-    pub fn get_valid_cell_options(&self, field: &Vec<u32>) -> (usize, Self) {
-        let mut new_options=Cell::new(&self.pos, self.ops, self.res);
-        let mut count: usize = 0;
+     pub fn get_valid_cell_options(&self, field: &Vec<u32>, bl: &mut BlackList) -> (usize, Self) {
 
-        for o in &self.options {
-            let mut valid: bool = true;
-            let d = get_digits(*o);
-            for i in 0..self.pos.len() {
-                let row = self.pos[i]/10;
-                let col=self.pos[i] % 10;
-                valid = valid &&
-                    field.iter().fold((0,0), |ind,&x|
-                        if x == d[i] && ((ind.0/10) == row || (ind.0 % 10) == col) {
-                            (ind.0+1,ind.1+1)
-                        } else {
-                            (ind.0+1,ind.1)
-                        }
-                   ).1 == 0;
-            }
-            //Option is still valid
-            if valid {
-                count=new_options.add_option_to_cell(*o);
-            };
-        }
+         //current options to be validated
+         let mut new_options = self.options.clone();
+         let mut new_black_listed = self.is_black_listed;
 
-        (count, new_options)
-    }
+         //position of digit of current position
+         let mut pod: u32 = u32::pow(10, self.pos.len() as u32 - 1);
+         //for each position
+         for p in &self.pos {
+             let col = p % 10;
+             let row = p - col;
 
+             //get the black listed digits for the current position
+             let mut pos_bl: HashSet<u32> = bl.get(p);
+
+             //get the existing digits in the col and row of the current position
+             //add those digits to the position blacklist
+
+
+             (row..row + 9).chain((col..90).step_by(10))
+                 .map(|i| field[i])//change index to digit
+                 .filter(|&d| d > 0)  //get existing values
+                 .for_each(|d| if pos_bl.insert(d) {}); //add to positional blacklist
+
+             //filter out all digits from the positional blacklist
+             new_options = new_options.into_iter()
+                 .filter(|&o| !pos_bl.contains(&((o / pod) % 10)))
+                 .collect();
+
+             pod /= 10;
+         };
+         //Update the blacklist if new unique values for one dimensional cells are found
+
+         if self.is_onedim && !new_black_listed && new_options.len() > 1 {
+             //println!("----\n Cell: {:?} \n bl: {:?} \n NewOpt: {:?}", self, bl, new_options);
+             //get digits of first option
+             let check_digits: HashSet<u32> = get_digits(new_options[0]).into_iter().collect();
+             //check if any of the other options contain any digit not in the first option
+             if !new_options.iter().skip(1)
+                 .any(|&o| get_digits(o).iter()
+                     .any(|d| !check_digits.contains(d))) {
+                 //all available options have the same digits
+                 //update the blacklist
+                 bl.insert(&self.pos, &check_digits);
+                 new_black_listed = true;
+                 //println!("** bl after: {:?}", bl);
+             }
+         }
+         (new_options.len(), Cell::new_with_options(self, &new_options, new_black_listed))
+     }
 
 
 
@@ -180,7 +219,7 @@ impl Cell {
     fn validate_kenken_candidate(pos: &Vec<usize>, kk_size: u32, op:char, res:u32, candidate:u32) -> bool {
 
         //decompose candidate into single digits
-        let mut v = get_digits(candidate);
+        let v = get_digits(candidate);
 
         //check if candidate includes zeros or digits greater than the kk_size
         if v.iter().fold(0, |s,&x| if x==0 || x>kk_size {s+1} else {s}) >0 {
@@ -194,27 +233,19 @@ impl Cell {
                 ((0..v.len()).fold(0,|s,x|
                     if v[i]==v[x] && pos[i]%10 == pos[x]%10  {s+1} else {s}) == 1)) {return false}
 
-
-        //sorts the first 2 Elements - candidate must be greater than 9!
-        if v[0]>v[1] {
-            v[1] = v[0]+v[1];
-            v[0] = v[1]-v[0];
-            v[1] = v[1]-v[0];
-        };
-
         //checks the numeric calculation
         match op {
             '+' => res==v.iter().fold(0,|s,x| s+x),
             '*' => res==v.iter().fold(1,|s,x| s*x),
-            '-' => v.len()==2 && res==(v[1]-v[0]),
-            ':' => v.len()==2 && res==(v[1]/v[0]) && (0 == v[1] % v[0]),
+            '-' => v.len()==2 && res==(v[1] as i32 - v[0] as i32).abs() as u32,
+            ':' => v.len()==2 && ((v[1]== (res* v[0])) || (v[0]== (res* v[1]))),
             _ => false
             }
 
 
     }
 
-    /// check_cell_on_unique_digits_per_line checks if all positions of the cell
+/*    /// check_cell_on_unique_digits_per_line checks if all positions of the cell
     /// are in the same row or column and if the valid options contain exactly the same
     /// number of different digits
     /// (e.g. a Cell with "8-" and 2 positions only has 1-9 and 9-1 as valid options)
@@ -295,7 +326,7 @@ impl Cell {
         }
 
         changed
-    }
+    }*/
 
 }
 
