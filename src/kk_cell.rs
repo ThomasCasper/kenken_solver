@@ -1,9 +1,26 @@
+//! kk_cells is part of kenken_solve and provides the implementation of a basic cell
+//!
+//! A cell is the combination of single positions on the kenken field which full fill
+//! a given mathematical operation.
+//! The Kenken puzzle consists of a set of cells. This set outlays the n x n kenken field
+//!
+//!
 use std::collections::HashSet;
 
 use permutohedron::heap_recursive;
 
 use crate::kk_improve::BlackList;
 
+/// Struct cell describes a single cell
+/// A cell consists of
+/// * a result of the mathematical operation
+/// * the mathematical operation ('+', '-', '*', ':' or 'c' for constants)
+/// * the (vector of) single positions within the kenken puzzle belonging to the cell
+/// * the (vector of) the possible options (solutions) for the cell full filling the operation
+///   (the solution contains exactly one option)
+/// * a marker, if the cell is one dimensional, i.e. all positions are in exactly one row or column
+/// * a marker, if the cell was black listed already, i.e. the options where cleaned from invalid one.
+///
 #[derive(Debug,Clone)]
 pub struct Cell {
     res: u32,
@@ -14,37 +31,7 @@ pub struct Cell {
     pub is_black_listed: bool
 }
 
-
-/*#[derive(Debug,Clone)]
-pub struct ReducePosByDigits {
-    pos: HashSet<usize>,
-    digits: HashSet<u32>
-}
-
-impl ReducePosByDigits {
-
-    /// Creates new ReducePosByDigit_Struct
-    /// with new_digits as digits
-    /// mode: True - row, false - col
-    /// line: the row or col of all cells
-    /// line_pos: the position of the "unique digits", hence the pos field is the reverse
-    pub fn new(new_digits: HashSet<u32>, modus:bool, line:usize, line_pos: HashSet<usize>) -> Self {
-        let mut new_pos = HashSet::<usize>::new();
-        for i in 0..9 {
-            if !line_pos.contains(&i) {
-                if modus { new_pos.insert(10 * line + i) }
-                else {new_pos.insert(10*i+line)};
-            };
-        };
-
-        ReducePosByDigits {
-            pos: new_pos,
-            digits : new_digits,
-        }
-    }
-}*/
-
-
+/// The function get_digits
 pub fn get_digits(val:u32) -> Vec<u32>{
     let mut v=Vec::<u32>::new();
     let mut j:u32=val;
@@ -93,17 +80,19 @@ impl Cell {
             options: new_options.clone()
         }
     }
+/// Create new Cell from existing cell with new options
 
-    /// If a constant is found, just add the constant to the field
-    /// for constants there is no "try-and-error" required
-    pub fn apply_const(&self, field: &mut Vec<u32>, check_field: &mut Vec<u32>) -> Result<bool,String> {
-        if self.ops =='c' {
-            if self.pos.len() != 1 {return Err(format!("Constant [{}] with ambiguous position(s): {:?}",self.res,self.pos))};
-            field[self.pos[0]] = self.res;
-            check_field [self.pos[0]] += 1;
-            Ok(true)
-        } else {Ok(false)}
+    pub fn new_with_option_nr(old_cell: &Self, option_nr:usize) -> Self {
+        Cell {
+            ops: old_cell.ops,
+            res: old_cell.res,
+            pos: old_cell.pos.clone(),
+            is_onedim: old_cell.is_onedim,
+            is_black_listed: old_cell.is_black_listed,
+            options: vec![old_cell.options[option_nr]]
+        }
     }
+
 
     /// Adds the option with index option_nr to the given field
     /// no validation is done
@@ -113,23 +102,29 @@ impl Cell {
 
         if option_nr<self.options.len() {
             let digits = get_digits(self.options[option_nr]);
-            self.pos.iter().zip(digits.iter()).for_each(|(&p,&d)| field[p]=d);
-            true
+            let mut changed:bool=false;
+            self.pos.iter().zip(digits.iter()).for_each(|(&p,&d)| {
+                changed = changed || field[p] != d;
+                field[p]=d;
+            });
+            changed
         } else {false}
     }
 
     /// Mark all positions fo the Cell in the game field, to check completeness of KenKen puzzle
     pub fn mark_positions(&self, field: &mut Vec<u32>) {
-        //self.pos.iter().map(|&x | field[x]  +=1);
-        for p in &self.pos {
-            field[*p] += 1;
-        }
+        self.pos.iter().for_each(|&p| field[p]  +=1);
+    }
+
+    /// Mark all cell positions within a given field with the given cell ID
+    pub fn mark_cell_positions(&self, field: &mut Vec<u32>, cell_id:u32) {
+        self.pos.iter().for_each(|&p| field[p]  = cell_id);
     }
 
     /// Add all possible options for the KenKen-Cell, which fulfill the mathematical restrictions
     /// check, that the option values are compliant with the 1 digit per row/column restriction
     /// This allows to add/check options position wise...
-    pub fn add_options_base_kenken(&mut self, kk_size:u32) -> u32{
+    pub fn add_options_base_kenken(&mut self, kk_size:usize) -> u32{
         let start:u32 = u32::pow(10, self.pos.len() as u32-1);
         let ops=self.ops;
         let res= self.res;
@@ -162,6 +157,11 @@ impl Cell {
     /// returns a new cell with all valid options and a count of the valid options
 
      pub fn get_valid_cell_options(&self, field: &Vec<u32>, bl: &mut BlackList) -> (usize, Self) {
+
+         //if only 1 option is left, return the current cell
+         if self.options.len()==1 {
+             return (1,self.clone());
+         };
 
          //current options to be validated
          let mut new_options = self.options.clone();
@@ -216,13 +216,13 @@ impl Cell {
 
 
     /// Validates if candidate is a valid option for a KenKen cell
-    fn validate_kenken_candidate(pos: &Vec<usize>, kk_size: u32, op:char, res:u32, candidate:u32) -> bool {
+    fn validate_kenken_candidate(pos: &Vec<usize>, kk_size: usize, op:char, res:u32, candidate:u32) -> bool {
 
         //decompose candidate into single digits
         let v = get_digits(candidate);
 
         //check if candidate includes zeros or digits greater than the kk_size
-        if v.iter().fold(0, |s,&x| if x==0 || x>kk_size {s+1} else {s}) >0 {
+        if v.iter().fold(0, |s,&x| if x==0 || x>kk_size as u32 {s+1} else {s}) >0 {
             return false;
         }
 
@@ -239,94 +239,12 @@ impl Cell {
             '*' => res==v.iter().fold(1,|s,x| s*x),
             '-' => v.len()==2 && res==(v[1] as i32 - v[0] as i32).abs() as u32,
             ':' => v.len()==2 && ((v[1]== (res* v[0])) || (v[0]== (res* v[1]))),
+            'c' => v.len()==1 && (v[0]==res),
             _ => false
             }
 
 
     }
-
-/*    /// check_cell_on_unique_digits_per_line checks if all positions of the cell
-    /// are in the same row or column and if the valid options contain exactly the same
-    /// number of different digits
-    /// (e.g. a Cell with "8-" and 2 positions only has 1-9 and 9-1 as valid options)
-    /// if unique digits per line are found the digits and the remaining positions in
-    /// the same line are returned
-    pub fn check_cell_on_unique_digits_per_line(&self)->Option<ReducePosByDigits>{
-        let mut col_hash=HashSet::<usize>::new();
-        let mut row_hash=HashSet::<usize>::new();
-        //get different rows/cols from positions
-        for pos in &self.pos {
-            col_hash.insert(pos % 10);
-            row_hash.insert(pos / 10);
-        };
-        //if multiple rows/columns -> return
-        if col_hash.len()>1 && row_hash.len()>1 { return None};
-        //Values are in the same line/column
-        let line: usize;
-        let line_hash: HashSet<usize>;
-        let modus:bool;
-        if col_hash.len()==1 {
-            line = self.pos[0] % 10;
-            line_hash = row_hash;
-            modus = false;
-        } else {
-            line = self.pos[0] / 10;
-            line_hash = col_hash;
-            modus = true;
-        };
-        let dc = line_hash.len();
-        let mut digit_hash = HashSet::<u32>::new();
-        for op in &self.options {
-            //get unique digits from option
-            let mut j:u32=*op;
-            loop {
-                digit_hash.insert(j % 10);
-                j /= 10;
-                if j==0 {break}
-            };
-            //if there are more different digits than positions -> return
-            if digit_hash.len()>dc {return None}
-        }
-        //we have found unique line values
-
-        Some(ReducePosByDigits::new(digit_hash,modus,line,line_hash))
-
-    }
-
-    /// clean_unique_digits_from_line reduces the unique digits from the valid options
-    /// if the cell contains one ore more positions in ReducePosByPosition
-    /// if a cleaning took place the return value is true
-    pub fn clean_unique_digits_from_line(&mut self, rpv: &Vec<ReducePosByDigits>) -> bool {
-
-        let mut changed:bool=false;
-
-        for (i,pos) in (&self.pos).iter().enumerate() {
-            for rp in rpv {
-                if rp.pos.contains(pos) {
-                    let mut new_options: Vec<u32> = Vec::new();
-                    let mut pos_changed: bool = false;
-                    //println!("found pos {} at {} in {:?}", pos, i, &self);
-                    //Cell contains a relevant position
-                    for &op in &self.options {
-                        if rp.digits.contains(&get_digits(op)[i]) {
-                            //Option with unique value was found and will be removed
-                            pos_changed = true;
-                        } else {
-                            new_options.push(op);
-                        }
-                    }
-                    if pos_changed {
-                        //println!("before change {:?}",&self);
-                        self.options = new_options;
-                        changed = true;
-                        //println!("after change {:?}",&self);
-                    }
-                }
-            }
-        }
-
-        changed
-    }*/
 
 }
 

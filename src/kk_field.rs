@@ -4,12 +4,13 @@ use std::fmt;
 use crate::kk_field::GameType::{KenKen, Sudoku};
 use std::collections::HashSet;
 use crate::kk_improve::BlackList;
+use std::collections::HashMap;
 
 
 #[derive(Debug,Clone)]
 pub struct Field {
     game_type: GameType,
-    dim: u32,
+    dim: usize,
     field:Vec<u32>,
     bl:BlackList,
     cells:Vec<Cell>
@@ -118,9 +119,9 @@ impl Field {
         for l in definition {
             if let Some(cell) = Field::line_to_cell(l) {
 
-                if !cell.apply_const(&mut self.field, &mut check_field)? {
+                //if !cell.apply_const(&mut self.field, &mut check_field)? {
                     self.cells.push(cell);
-                };
+                //};
 
             } else {
                 return Err(format!("Can't convert line [{}] into cell!",l));
@@ -215,6 +216,7 @@ impl Field {
         let mut new_field = Field::new(Some(&self));
         let mut new_cells = self.cells.clone();
         let mut ind:usize = 0;
+        let mut cells_w_options:usize = 0;
         let mut ind_min:usize=0;
         let mut min_cells:usize=1000;
         //println!("New validation: {}", new_cells.len());
@@ -225,39 +227,62 @@ impl Field {
 
             match cell_cnt {
                 // no valid options left => Error and next try
-                0 => return (0, None, None),
+                0 => {
+                    //println!("Cell with count 0: {} - {:?}",ind,valid_cell);
+                    //println!("New field with cnt 0: {:?}", new_field);
+                    return (0, None, None);
+                },
                 // only 1 option left => Add option (first) to field and restart update
                 1 => {
-                    valid_cell.apply_option_to_field(&mut new_field.field, 0);
-                    min_cells = 1000;
-                    ind = 0;
+
+
+                    //only "reset" if change happened
+                    if valid_cell.apply_option_to_field(&mut new_field.field, 0) {
+                        new_cells.insert(ind,valid_cell);
+                        min_cells = 1000;
+                        ind = 0;
+                        cells_w_options=0;
+                    } else {
+                      new_cells.insert(ind,valid_cell);
+                        ind += 1;
+                    };
+
                 },
                 // more than 1 option left, add cell back to list and move to next cell
                 // if number of valid options is the new min, than save the index
                 c => {
                     new_cells.insert(ind,valid_cell);
+                    cells_w_options+=1;
                     if c<min_cells {
                         min_cells=c;
                         ind_min=ind;
-                    }
+                    };
                     ind+=1;
                 }
             }
         }
 
-        if new_cells.len()>0 {
+        //if new_cells.len()>0 {
+        if cells_w_options>0 {
             let best_option= new_cells.remove(ind_min);
             new_field.cells = new_cells.clone();
-            (new_cells.len(), Some(new_field),Some(best_option))
+            (cells_w_options, Some(new_field),Some(best_option))
         }
         else {
+            new_field.cells = new_cells.clone();
             (0,Some(new_field),None)
         }
 
     }
 
     pub fn apply_option_to_field(&mut self, cell: &Cell, option: usize) -> bool {
-        cell.apply_option_to_field(& mut self.field, option)
+
+        if cell.apply_option_to_field(& mut self.field, option) {
+           self.cells.push(Cell::new_with_option_nr(cell,option));
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -266,7 +291,7 @@ impl Field {
 
 impl fmt::Display for Field {
     // This trait requires `fmt` with this exact signature.
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+/*    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut my_display = String::new();
         let d = self.dim;
         self.field.iter().fold(0, |l, &c|
@@ -281,5 +306,133 @@ impl fmt::Display for Field {
          );
 
         write!(f, "{}", my_display)
+    }*/
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+
+       let cross_marks: HashMap<u32, char> = [
+            ( 0, '\u{253C}'),
+            ( 5, '\u{253F}'),
+            (10, '\u{2542}'),
+            ( 9, '\u{2543}'),
+            (12, '\u{2544}'),
+            ( 3, '\u{2545}'),
+            ( 6, '\u{2546}'),
+            (13, '\u{2547}'),
+            ( 7, '\u{2548}'),
+            (11, '\u{2549}'),
+            (14, '\u{254A}'),
+            (15, '\u{254B}')
+            ].iter().cloned().collect();
+
+        let d:usize = self.dim;
+
+        //Extract groups from Cells
+        let mut cell_field:Vec<u32>=vec![0;100];
+        //for Kenken
+        if self.game_type == KenKen {
+            let mut cell_id: u32 = 0;
+            for c in &self.cells {
+                cell_id += 1;
+                c.mark_cell_positions(&mut cell_field, cell_id);
+            };
+        } else {
+            for row in 0..9 {
+                for col in 0.. 9 {
+                    cell_field[30*(row / 3)+3*(row % 3) + 10*(col /3) + (col % 3)] = row as u32 +1;
+                }
+            }
+        };
+        //println!("Len of cells: {}", self.cells.len());
+        //println!("{:?}",cell_field);
+
+        //build up display
+        let mut display_field:Vec<char>=vec![' ';400];
+        // fill values and lines between cells
+        for row in 0..d {
+            //insert top border above values
+            display_field[2*row+1]='\u{2501}';
+            //insert left border left of values
+            display_field[40*row+20]='\u{2503}';
+            //Insert Linebreaks at end of each line
+            display_field[40*row+19]='\n';
+            display_field[40*row+39]='\n';
+
+            for col in 0..d {
+                //insert value of cell
+                if self.field[10 * row + col] > 0 {
+                    display_field[40 * row + 2 * col + 21] = char::from_digit(self.field[10 * row + col], 10).unwrap();
+                }
+                //insert line right of cell
+                if cell_field[10 * row + col] == cell_field[10 * row + col + 1] {
+                    display_field[40 * row + 2 * col + 22] = '\u{2502}';
+                } else {
+                    display_field[40 * row + 2 * col + 22] = '\u{2503}';
+                };
+                //insert line at bottom of cell
+                if cell_field[10 * row + col] == cell_field[10 * row + col + 10] {
+                    display_field[40 * row + 2 * col + 41] = '\u{2500}';
+                } else {
+                    display_field[40 * row + 2 * col + 41] = '\u{2501}';
+                };
+            };
+        }
+
+
+        //add borders & cross points
+        for row in 0..d-1 {
+            //add top border between values
+            if display_field[2*row+22]=='\u{2502}' {
+               display_field[2*row+2]='\u{252F}';
+            } else {
+               display_field[2*row+2]='\u{2533}';
+            }
+            //add bottom border between values
+            if display_field[40*d+2*row-18]=='\u{2502}' {
+               display_field[40*d+2*row+2]='\u{2537}';
+            } else {
+               display_field[40*d+2*row+2]='\u{253B}';
+            }
+            //add left border between values
+            if display_field[40*row+41]=='\u{2500}' {
+               display_field[40*row+40]='\u{2520}';
+            } else {
+               display_field[40*row+40]='\u{2523}';
+            }
+            //add right border between values
+            if display_field[40*row+2*d+39]=='\u{2500}' {
+               display_field[40*row+2*d+40]='\u{2528}';
+            } else {
+               display_field[40*row+2*d+40]='\u{252B}';
+            }
+            for col in 0..d-1 {
+                display_field[40*row+2*col+42]=*cross_marks.get(
+                    &((display_field[40*row+2*col+22] as u32 - 0x2502) * 8 +
+                    (display_field[40*row+2*col+43] as u32 - 0x2500) * 4 +
+                    (display_field[40*row+2*col+62] as u32 - 0x2502) * 2 +
+                    (display_field[40*row+2*col+41] as u32 - 0x2500))
+                ).unwrap();
+
+            }
+
+        };
+
+        //add corners
+        //upper left
+        display_field[0]='\u{250F}';
+        //upper right
+        display_field[2*d]='\u{2513}';
+        //lower left
+        display_field[40*d]='\u{2517}';
+        //lower right
+        display_field[42*d]='\u{251B}';
+
+        //Print field
+        //remove thin lines for better readability
+        let my_display : String = display_field.iter()
+            .map(|c| if (*c=='\u{2500}') || (*c=='\u{2502}') || (*c=='\u{253C}') {&' '} else {c})
+            .cloned().collect();
+
+        write!(f, "{}", my_display)
+
     }
 }

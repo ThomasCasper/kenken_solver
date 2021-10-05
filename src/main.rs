@@ -46,7 +46,7 @@
 //!     * for better readability a "." might be entered between 3 position.
 //!
 //! #Examples
-//! for a Sudokupuzzle
+//! for a Sudoku puzzle
 //! ```
 //! Sudoku Expert level
 //! Sudoku
@@ -73,7 +73,7 @@ mod kk_improve;
 /// The main program coordinate the steps for the solution
 /// * ask user for the file name of the puzzle
 /// * load the file via kk_inputs
-/// * start the recursice try and error solution process
+/// * start the recursive try and error solution process
 /// * print the solution
 ///
 
@@ -119,13 +119,14 @@ fn main() {
 /// * fill in all cells with only one option left
 /// * if there are still cell with more than 1 option left
 /// * choose and set an option from one of the cells with the less most available options
-/// and restart the recursion, if the choosen option for the cell was wrong, choose the next option ...
+/// and restart the recursion, if the chosen option for the cell was wrong, choose the next option ...
 ///
 fn kenken_solve(iteration: i32, field: Field) -> Option<Field> {
 
     //println!("{} -\n{}",iteration, field);
+    //println!("Field before Options: {:?}",field);
     let (count, temp_field, opt) = field.get_new_valid_field();
-    //println!("{:?}{:?}{:?}", count,temp_field,opt);
+    //println!("Count {:?}\n field after Options {:?}\n Next Option{:?}", count,temp_field,opt);
     if count ==0 {
         // if count is zero recursion ends
         // if field is None there was an error
@@ -139,13 +140,15 @@ fn kenken_solve(iteration: i32, field: Field) -> Option<Field> {
     let mut current_option:usize = 0;
 
 
-    let mut new_field: Field = temp_field.unwrap();
+    let mut new_field: Field = temp_field.clone().unwrap();
+
     while new_field.apply_option_to_field(&option,current_option) {
 
         current_option +=1;
         if let Some(field)=kenken_solve(iteration+1, new_field.clone()) {
             return Some(field);
         };
+        new_field = temp_field.clone().unwrap();
     };
 
 
