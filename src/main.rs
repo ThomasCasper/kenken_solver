@@ -61,14 +61,19 @@
 //! -4-.-8-.---
 //! ```
 //!
+
+#[macro_use]
+extern crate derive_getters;
+
 use crate::kk_field::Field;
 use std::time::Instant;
 use std::io;
+use std::env;
 
 mod kk_cell;
 mod kk_field;
-mod kk_inputs;
 mod kk_improve;
+mod kk_load;
 
 /// The main program coordinate the steps for the solution
 /// * ask user for the file name of the puzzle
@@ -78,80 +83,32 @@ mod kk_improve;
 ///
 
 fn main() {
-
-
-    println!("Enter filename of KenKen: ");
+    let args: Vec<String> = env::args().collect();
     let mut file_name = String::new();
-    io::stdin().read_line(&mut file_name).expect("Could not read from standard input");
-    let now = Instant::now();
-    let mut f = Field::new(None);
-    if file_name.starts_with("Dim") {
-        f.initialize_from_definition(
-        &kk_inputs::definition_inline(file_name.trim())
-        ).expect("Init from inline definition failed");
+    if args.len() == 1 {
+        println!("Enter filename of puzzle: ");
+        io::stdin().read_line(&mut file_name).expect("Could not read from standard input");
     } else {
-        f.initialize_from_definition(
-        &kk_inputs::definition_from_file(file_name.trim())
-        ).expect("Init from external definition failed");
+        file_name = args[1].clone();
     }
-    let dur=now.elapsed().as_millis();
-    println!("Init Duration : {}:{}:{}.{}",dur/3600000,dur/60000 % 60,dur/1000 % 60,dur % 1000 );
 
-    println!("Start -\n{}",f);
-    //println!("{:?}", f);
+    let now = Instant::now();
+    let puzzle_string = kk_load::PuzzleAsString::new_from_file(&file_name)
+        .expect("Couldn't load file.");
 
-    let solution = kenken_solve(1,f);
+    println!("Starting to solve....\n{}", puzzle_string);
+
+    let mut field = Field::new();
+    field.initialize_from_puzzle_file(puzzle_string)
+        .expect("Init from loaded file failed");
+
+    let solution = field.solve();
     match solution {
-        Some(sol) => println!("Solution -\n{}",sol),
-        None => println!("Error"),
+        Some(sol) => println!("Solution: \n\n{}\n", sol),
+        None => println!("Error! Puzzle is not solvable!"),
     }
-    let dur=now.elapsed().as_millis();
-    println!("Total Duration : {}:{}:{}.{}",dur/3600000,dur/60000 % 60,dur/1000 % 60,dur % 1000 );
-
+    let duration = now.elapsed().as_millis();
+    println!("Total Duration : {:02}:{:02}:{:02}.{:03}", duration / 3600000, duration / 60000 % 60, duration / 1000 % 60, duration % 1000);
 }
 
-/// KenKen_solve is the recursive try and error solver for the puzzles
-/// it accepts the iteration-depth and the current state of the solved puzzle
-///
-/// the solution is done in the following steps
-///
-/// * check all cells for valid options in the given solution state
-/// * fill in all cells with only one option left
-/// * if there are still cell with more than 1 option left
-/// * choose and set an option from one of the cells with the less most available options
-/// and restart the recursion, if the chosen option for the cell was wrong, choose the next option ...
-///
-fn kenken_solve(iteration: i32, field: Field) -> Option<Field> {
 
-    //println!("{} -\n{}",iteration, field);
-    //println!("Field before Options: {:?}",field);
-    let (count, temp_field, opt) = field.get_new_valid_field();
-    //println!("Count {:?}\n field after Options {:?}\n Next Option{:?}", count,temp_field,opt);
-    if count ==0 {
-        // if count is zero recursion ends
-        // if field is None there was an error
-        // otherwise field contains the found solution
-             return temp_field;
-
-        };
-    // new iteration
-
-    let option = opt.unwrap();
-    let mut current_option:usize = 0;
-
-
-    let mut new_field: Field = temp_field.clone().unwrap();
-
-    while new_field.apply_option_to_field(&option,current_option) {
-
-        current_option +=1;
-        if let Some(field)=kenken_solve(iteration+1, new_field.clone()) {
-            return Some(field);
-        };
-        new_field = temp_field.clone().unwrap();
-    };
-
-
-    None
-
-}

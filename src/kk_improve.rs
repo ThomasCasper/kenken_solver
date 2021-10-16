@@ -2,7 +2,7 @@ use std::collections::{HashSet,HashMap};
 
 #[derive(Debug,Clone)]
 pub struct BlackList {
-    bl: HashMap<usize,HashSet<u32>>
+    bl: HashMap<usize,HashSet<usize>>
 }
 
 impl BlackList {
@@ -13,16 +13,16 @@ impl BlackList {
 
     }
 
-    pub fn get(&self, pos: &usize) -> HashSet<u32> {
+    pub fn get(&self, pos: &usize) -> HashSet<usize> {
         if let Some(hs) = self.bl.get(pos) {
             hs.clone()
         } else {
-            HashSet::<u32>::new()
+            HashSet::<usize>::new()
         }
 
     }
 
-    pub fn insert(&mut self, pos:&Vec<usize>, digits: &HashSet<u32>) {
+    pub fn insert(&mut self, pos:&Vec<usize>, digits: &HashSet<usize>) {
         //dimension is col or row?
 
         let new_pos: Vec<usize>;
@@ -45,7 +45,7 @@ impl BlackList {
                 .collect();
         }
         for p in new_pos {
-            let mut new_hs:HashSet<u32> =digits.clone();
+            let mut new_hs:HashSet<usize> =digits.clone();
             if let Some(ohs)=self.bl.get(&p) {
                 //join old an new digits
                 new_hs.extend(ohs)

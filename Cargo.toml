@@ -7,3 +7,5 @@ edition = "2018"
 
 [dependencies]
 permutohedron = "0"
+derive-getters = "0"
+itertools = "0"
