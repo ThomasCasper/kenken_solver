@@ -1,55 +1,62 @@
-
-use crate::kk_cell::{Cell};
+//! kk_puzzle is part of kenken_solve and provides the representation of the puzzle to be solved
+//!
+//! A puzzle consist of
+//!  * the type of the puzzle, i.e. KenKen or Sudoku
+//!  * the dimension (3 to 9) of the puzzle (for sudoku this is always 9)
+//!  * a field, representing a representation of all set group-solutions
+//!  * a list of undecided groups (with more than one option left)
+//!  * a blacklist, holding blacklisted digits for each field position
+//!
+use crate::kk_group::{Group};
 use std::fmt;
-use crate::kk_load::GameType::{KenKen, Sudoku};
+use crate::kk_load::GameType::{Sudoku};
 use crate::kk_load::GameType;
 use std::collections::HashSet;
-use crate::kk_improve::BlackList;
+use crate::kk_black_list::BlackList;
 use crate::kk_load::PuzzleAsString;
 
 
 #[derive(Debug,Clone)]
-pub struct Field {
+pub struct Puzzle {
     game_type: GameType,
     dimension: usize,
     field:Vec<usize>,
     black_list:BlackList,
-    cells:Vec<Cell>
+    groups:Vec<Group>
 }
 
 
-impl Field {
-    pub fn new() -> Self {
-        Field {
-            game_type: KenKen,
-            dimension: 0,
-            field: vec![0; 100],
-            black_list: BlackList::new(),
-            cells: Vec::new(),
-        }
-    }
+impl Puzzle {
 
-    pub fn copy_without_cells(old_field: &Field) -> Self {
+    /// Copies a puzzle without the groups, i.e. the list of groups of the new puzzle is empty
+    pub fn copy_without_groups(old_field: &Puzzle) -> Self {
 
-        Field {
+        Puzzle {
             game_type: old_field.game_type,
             dimension: old_field.dimension,
             field: old_field.field.clone(),
             black_list:old_field.black_list.clone(),
-            cells: Vec::new(),
+            groups: Vec::new(),
         }
 
     }
 
-    pub fn initialize_from_puzzle_file(&mut self, puzzle_file: PuzzleAsString) -> Result<&str, String> {
+    pub fn new_from_puzzle_file( puzzle_file: PuzzleAsString) -> Result<Self, String> {
+        let mut new_puzzle=Puzzle {
+            game_type: *puzzle_file.game_type(),
+            dimension: puzzle_file.get_dimension()?,
+            field: vec![0; 90],
+            black_list: BlackList::new(),
+            groups: Vec::new(),
+        };
 
-        self.game_type = *puzzle_file.game_type();
-        self.dimension = puzzle_file.get_dimension()?;
-        if self.game_type == Sudoku {
-            self.initialize_sudoku_from_definition(puzzle_file.puzzle_string())
+        if new_puzzle.game_type == Sudoku {
+            new_puzzle.initialize_sudoku_from_definition(puzzle_file.puzzle_string())?;
         } else {
-            self.initialize_kenken_from_definition(puzzle_file.puzzle_string())
+            new_puzzle.initialize_kenken_from_definition(puzzle_file.puzzle_string())?;
         }
+
+        Ok(new_puzzle)
     }
 
     fn initialize_sudoku_from_definition(&mut self, definition: &Vec<String>) -> Result<&str, String> {
@@ -83,11 +90,11 @@ impl Field {
             }
             //add a new cell for the open positions
             if positions.len()>0 {
-                let mut cell = Cell::new(&positions, 's', 45);
-                 if cell.add_options_base_sudoku(&constants) == 0 {
+                let group = Group::new_sudoku(&positions, &constants);
+                 if group.is_err() {
                     return Err(format!("Quadrant with no valid options found {}", quadrant));
                 }
-                self.cells.push(cell);
+                self.groups.push(group.unwrap());
             }
         }
 
@@ -97,15 +104,9 @@ impl Field {
     fn initialize_kenken_from_definition(&mut self, puzzle_string_vector: &Vec<String>) -> Result<&str, String> {
 
         for cell_as_string in puzzle_string_vector {
-            self.cells.push(Cell::new_from_string(cell_as_string)?);
+            self.groups.push(Group::new_kenken(self.dimension,cell_as_string)?);
         }
 
-        //Add options to Cells
-        for cell in &mut self.cells {
-            if cell.add_options_base_kenken(self.dimension) == 0 {
-                return Err(format!("Cell has no valid option - {:?}",cell));
-            }
-        }
 
         //initialize blacklist and apply first unique digits
         let (o_field,c)= self.get_new_valid_field();
@@ -113,8 +114,8 @@ impl Field {
         if let Some(of)=o_field {
             self.field = of.field.clone();
             self.black_list = of.black_list.clone();
-            self.cells = of.cells.clone();
-            self.cells.push(c.unwrap());  //add best cell to cells
+            self.groups = of.groups.clone();
+            self.groups.push(c.unwrap());  //add best cell to cells
         }
 
         Ok("ok")
@@ -132,9 +133,9 @@ impl Field {
     /// if count is 0, and a field is returned: The Kenken was solved and the returned field is the solution
     /// if count is 0 and the field is None, there where no valid options left and the try was an error
 
-    pub fn get_new_valid_field(&self) -> (Option<Self>, Option<Cell>) {
-        let mut new_field = Field::copy_without_cells(&self);
-        let mut new_cells = self.cells.clone();
+    pub fn get_new_valid_field(&self) -> (Option<Self>, Option<Group>) {
+        let mut new_field = Puzzle::copy_without_groups(&self);
+        let mut new_cells = self.groups.clone();
         let mut index:usize = 0;
 
         let mut ind_min:usize=0;
@@ -145,7 +146,7 @@ impl Field {
         while index < new_cells.len() {
             //println!("{} - {}",ind, new_cells.len());
             let (opt_cnt, cell_pos,valid_cell) = new_cells.remove(index)
-                .get_valid_cell_options(&new_field.field,&mut new_field.black_list);
+                .get_valid_options(&new_field.field, &mut new_field.black_list);
 
             match opt_cnt {
                 // no valid options left => Error and next try
@@ -182,7 +183,7 @@ impl Field {
 
         if new_cells.len()>0 {
             let best_option= new_cells.remove(ind_min);
-            new_field.cells = new_cells;
+            new_field.groups = new_cells;
             (Some(new_field),Some(best_option))
         }
         else {
@@ -191,7 +192,7 @@ impl Field {
 
     }
 
-    pub fn apply_option_to_field(&mut self, cell: &Cell, option_nr: usize) -> bool {
+    pub fn apply_option_to_field(&mut self, cell: &Group, option_nr: usize) -> bool {
 
         cell.apply_option_to_field(& mut self.field, option_nr)
 
@@ -208,7 +209,7 @@ impl Field {
 /// * choose and set an option from one of the cells with the less most available options
 /// and restart the recursion, if the chosen option for the cell was wrong, choose the next option ...
 ///
-    pub fn solve(self) -> Option<Field> {
+    pub fn solve(&self) -> Option<Puzzle> {
         let (updated_field_option, next_cell_option) = self.get_new_valid_field();
 
         if next_cell_option.is_none(){
@@ -223,7 +224,7 @@ impl Field {
 
         let mut current_option: usize = 0;
 
-        let mut next_field: Field = updated_field.clone();
+        let mut next_field: Puzzle = updated_field.clone();
 
         while next_field.apply_option_to_field(&next_cell, current_option) {
             current_option += 1;
@@ -237,20 +238,20 @@ impl Field {
         None
     }
 
+
 }
 
-
-
-
-impl fmt::Display for Field {
+/// Implementation of the format trait for the puzzle
+/// The field is printed as a dimension x dimension matrix
+impl fmt::Display for Puzzle {
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let d = self.dimension;
+        let dimension = self.dimension;
         let display:String = (0..89)
             .map(|index|
-                if (index % 10) < d && (index / 10) < d {
+                if (index % 10) < dimension && (index / 10) < dimension {
                     self.field[index].to_string()
-                } else if (index % 10) == d && (index / 10) < d {
+                } else if (index % 10) == dimension && (index / 10) < dimension {
                     "\n".to_string()
                 } else {
                     "".to_string()
@@ -259,5 +260,119 @@ impl fmt::Display for Field {
 
         write!(f, "{}", display)
     }
+
+}
+
+#[cfg(test)]
+mod kk_group_tests {
+    use super::*;
+    use crate::kk_load::GameType::KenKen;
+
+    #[test]
+    //checks the functions
+    // * new_from_puzzle_file,
+    // * apply_option_to_field and
+    // * get_new_valid_field
+    //
+    // for the kenken KK-DIM4-1.txt example
+    fn check_kenken_base() {
+        //load a kenken
+        let kenken_as_string= PuzzleAsString::new_from_file("KK-Dim4-1.txt").unwrap();
+
+        //check new_from_puzzle_file for kenken
+        let kenken_option = Puzzle::new_from_puzzle_file(kenken_as_string);
+        assert_eq!(kenken_option.is_ok(), true);
+        let mut kenken = kenken_option.unwrap();
+        assert_eq!(kenken.game_type, KenKen);
+        assert_eq!(kenken.dimension, 4);
+        assert_eq!(kenken.groups.len(), 6);
+        assert_eq!(kenken.field.len(), 90);
+
+        //check apply option_to field
+        let group=kenken.groups.remove(1);
+        assert_eq!(kenken.apply_option_to_field(&group,0),true);
+        assert_eq!(kenken.field[0],0);
+        assert_eq!(kenken.field[33],0);
+        assert_eq!(kenken.field[2],1);
+        assert_eq!(kenken.field[3],3);
+        assert_eq!(kenken.field[12],4);
+        assert_eq!(kenken.apply_option_to_field(&group,8),false);
+        assert_eq!(kenken.apply_option_to_field(&group,1),true);
+
+        //check get new valid field
+        // option nr 1 leads to no solution
+        let (new_field_option, next_group_option)=kenken.get_new_valid_field();
+        assert_eq!(new_field_option.is_none(), true);
+        assert_eq!(next_group_option.is_none(), true);
+
+        //option 5 leads to a solution
+        assert_eq!(kenken.apply_option_to_field(&group,5),true);
+        let (new_field_option, next_group_option)=kenken.get_new_valid_field();
+
+        assert_eq!(new_field_option.is_some(), true);
+        assert_eq!(next_group_option.is_some(), true);
+
+        //apply option 0 from next option for the next solution step
+        let mut new_field=new_field_option.unwrap();
+        assert_eq!(new_field.apply_option_to_field(&next_group_option.unwrap(),0),true);
+
+        let (new_field_option, next_group_option)=new_field.get_new_valid_field();
+        //solution found
+        assert_eq!(new_field_option.is_some(), true);
+        assert_eq!(next_group_option.is_none(), true);
+
+        //check that found solution is correct
+        let found_solution:Vec<usize>=new_field_option.unwrap()
+            .field.into_iter()
+            .filter(|&d| d>0)
+            .collect();
+
+        let manual_solution:Vec<usize>="2341123434124123"
+            .chars()
+            .map(|c| c.to_digit(10).unwrap() as usize)
+            .collect();
+
+        assert_eq!(found_solution, manual_solution);
+
+    }
+
+     #[test]
+    //checks the functions
+    // * new_from_puzzle_file,
+    // * apply_option_to_field and
+    // * get_new_valid_field
+    //
+    // for the kenken KK-DIM4-1.txt example
+    fn check_kenken_solve() {
+         //load a kenken
+         let kenken_as_string = PuzzleAsString::new_from_file("KK-Dim9-1.txt").unwrap();
+
+         //check new_from_puzzle_file for kenken
+         let kenken_option = Puzzle::new_from_puzzle_file(kenken_as_string);
+         assert_eq!(kenken_option.is_ok(), true);
+         let kenken = kenken_option.unwrap();
+         assert_eq!(kenken.game_type, KenKen);
+         assert_eq!(kenken.dimension, 9);
+         assert_eq!(kenken.groups.len(), 28);
+         assert_eq!(kenken.field.len(), 90);
+
+         let solution_option=kenken.solve();
+         assert_eq!(solution_option.is_some(), true);
+
+         let solution = solution_option.unwrap();
+         let found_solution:Vec<usize>=solution
+            .field.iter()
+            .filter(|&d| d>&0)
+             .map(|&d| d)
+            .collect();
+
+        let manual_solution:Vec<usize>="473958162529634781618542973892715436781293645147326859934861527356479218265187394"
+            .chars()
+            .map(|c| c.to_digit(10).unwrap() as usize)
+            .collect();
+
+        assert_eq!(found_solution, manual_solution);
+
+     }
 
 }

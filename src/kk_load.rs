@@ -137,7 +137,7 @@ mod kk_loader_tests {
         assert_eq!(valid_sudoku_file.description, "Sudoku Expert - https://sudoku.com/de/experte/");
         //assert_eq!(valid_sudoku_file.puzzle_string, "-5-.--8.269|--2.-43.---|--9.---.---|--7.---.---|---.-9-.-4-|5-3.---.-9-|---.-24.6-5|6--.---.--3|-4-.-8-.---");
 
-        let invalid_file=PuzzleAsString::new_from_file("abcd");
+        let invalid_file=PuzzleAsString::new_from_file("test_fail");
         assert_eq!(invalid_file.is_err(), true);
         assert_eq!(invalid_file.unwrap_err(),"Error reading file. Error message:\nNo such file or directory (os error 2)");
     }

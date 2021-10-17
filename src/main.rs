@@ -65,14 +65,14 @@
 #[macro_use]
 extern crate derive_getters;
 
-use crate::kk_field::Field;
+use crate::kk_puzzle::Puzzle;
 use std::time::Instant;
 use std::io;
 use std::env;
 
-mod kk_cell;
-mod kk_field;
-mod kk_improve;
+mod kk_group;
+mod kk_puzzle;
+mod kk_black_list;
 mod kk_load;
 
 /// The main program coordinate the steps for the solution
@@ -83,32 +83,45 @@ mod kk_load;
 ///
 
 fn main() {
+
+    //Retrieve filename from Args or as user input
     let args: Vec<String> = env::args().collect();
     let mut file_name = String::new();
     if args.len() == 1 {
         println!("Enter filename of puzzle: ");
-        io::stdin().read_line(&mut file_name).expect("Could not read from standard input");
+        io::stdin().read_line(&mut file_name)
+            .expect("Could not read from standard input");
     } else {
         file_name = args[1].clone();
     }
 
+    //Load input and prepare puzzle
     let now = Instant::now();
     let puzzle_string = kk_load::PuzzleAsString::new_from_file(&file_name)
         .expect("Couldn't load file.");
 
     println!("Starting to solve....\n{}", puzzle_string);
 
-    let mut field = Field::new();
-    field.initialize_from_puzzle_file(puzzle_string)
+    let puzzle = Puzzle::new_from_puzzle_file(puzzle_string)
         .expect("Init from loaded file failed");
 
-    let solution = field.solve();
-    match solution {
-        Some(sol) => println!("Solution: \n\n{}\n", sol),
-        None => println!("Error! Puzzle is not solvable!"),
+    //solve the puzzle & print out
+    let solution_option = puzzle.solve();
+    if solution_option.is_some() {
+        let solution=solution_option.unwrap();
+        println!("Solution: \n\n{}\n", solution);
+    } else {
+        println!("Error! Puzzle is not solvable!");
     }
+
+
     let duration = now.elapsed().as_millis();
-    println!("Total Duration : {:02}:{:02}:{:02}.{:03}", duration / 3600000, duration / 60000 % 60, duration / 1000 % 60, duration % 1000);
+    println!("Total Duration : {:02}:{:02}:{:02}.{:03}",
+             duration / 3600000,
+             duration / 60000 % 60,
+             duration / 1000 % 60,
+             duration % 1000);
+
 }
 
 
