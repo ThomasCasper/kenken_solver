@@ -8,8 +8,9 @@
 //! (the given constants are not part of these groups.
 //!
 use std::collections::HashSet;
-use permutohedron::heap_recursive;
+
 use itertools::Itertools;
+use permutohedron::heap_recursive;
 
 use crate::kk_black_list::BlackList;
 
@@ -102,7 +103,8 @@ impl Group {
         // the result at index 0,
         // the (encoded) operation at index 1 and
         // the positions from index 2 till the end
-        let mut positions: Vec<usize> = group_as_string.chars()
+        let mut positions: Vec<usize> = group_as_string
+            .chars()
             //map operations to ids and insert separators
             .map(|c| match c {
                 'c' => ".0.".to_string(),
@@ -110,7 +112,7 @@ impl Group {
                 '-' => ".2.".to_string(),
                 '*' => ".3.".to_string(),
                 ':' => ".4.".to_string(),
-                _ => c.to_string()
+                _ => c.to_string(),
             })
             .collect::<String>()
             //Split Res from operation from Positions
@@ -124,8 +126,12 @@ impl Group {
 
         //Check if there are at least 3 entries and
         // that here where no conversion errors, i.e. no usize::MAX is in the vector
-        if positions.len() >= 3 &&
-            positions.iter().fold(0, |max, &pos| if pos > max { pos } else { max }) < usize::MAX {
+        if positions.len() >= 3
+            && positions
+                .iter()
+                .fold(0, |max, &pos| if pos > max { pos } else { max })
+                < usize::MAX
+        {
             let result = positions.remove(0);
             let operation = vec!['c', '+', '-', '*', ':'][positions.remove(0)];
 
@@ -136,16 +142,18 @@ impl Group {
                 is_already_in_black_list: false,
                 //check if all positions are in one line or column, if yes
                 //the group is one dimensional
-                is_one_dimensional: positions.iter()
+                is_one_dimensional: positions
+                    .iter()
                     .map(|p| p / 10) //row
-                    .fold(true, |s, p| s && positions[0] / 10 == p) ||
-                    positions.iter()
+                    .fold(true, |s, p| s && positions[0] / 10 == p)
+                    || positions
+                        .iter()
                         .map(|p| p % 10) //column
                         .fold(true, |s, p| s && positions[0] % 10 == p),
                 positions,
             };
             //only one dimensional fields can get blacklisted
-            new_group.is_already_in_black_list=!new_group.is_one_dimensional;
+            new_group.is_already_in_black_list = !new_group.is_one_dimensional;
             //use multi_cartesian_product to get all possible combinations with repetition
             new_group.options = (0..new_group.positions.len())
                 .map(|_| (1..=dimension))
@@ -158,11 +166,18 @@ impl Group {
             }
         };
 
-        Err(format!("Can't parse line or no valid options for group found: {}", group_as_string))
+        Err(format!(
+            "Can't parse line or no valid options for group found: {}",
+            group_as_string
+        ))
     }
 
     /// Create new group from existing group, but with new options
-    pub fn copy_with_new_options(&self, new_options: &Vec<Vec<usize>>, new_is_black_listed: bool) -> Self {
+    pub fn copy_with_new_options(
+        &self,
+        new_options: &Vec<Vec<usize>>,
+        new_is_black_listed: bool,
+    ) -> Self {
         Group {
             operation: self.operation,
             result: self.result,
@@ -173,14 +188,14 @@ impl Group {
         }
     }
 
-
     /// Adds the option with index option_nr to the given field
     /// no validation is done
     /// the return value indicates success (true) or failure (false),
     /// i.e. the option_nr is greater than the available options
     pub fn apply_option_to_field(&self, field: &mut Vec<usize>, option_nr: usize) -> bool {
         if option_nr < self.options.len() {
-            self.positions.iter()
+            self.positions
+                .iter()
                 .zip(self.options[option_nr].iter())
                 .for_each(|(&position, &digit)| {
                     field[position] = digit;
@@ -201,12 +216,14 @@ impl Group {
     ///  * the number of positions of this group
     ///  * a new group with the new valid options attached
 
-    pub fn get_valid_options(&self, field: &Vec<usize>, black_list: &mut BlackList) -> (usize, usize, Self) {
-
+    pub fn get_valid_options(
+        &self,
+        field: &Vec<usize>,
+        black_list: &mut BlackList,
+    ) -> (usize, usize, Self) {
         //current options to be validated
         let mut new_options = self.options.clone();
         let mut is_black_listed = self.is_already_in_black_list;
-
 
         //for each position
         for index in 0..self.positions.len() {
@@ -214,34 +231,35 @@ impl Group {
             let row = self.positions[index] - column;
 
             //get the black listed digits for the current position
-            let mut position_black_list: HashSet<usize> = black_list
-                .get_position_black_list(&self.positions[index]);
+            let mut position_black_list: HashSet<usize> =
+                black_list.get_position_black_list(&self.positions[index]);
 
             //get the existing digits in the col and row of the current position
             //add those digits to the position blacklist
 
-            (row..row + 9).chain((column..90).step_by(10))
-                .map(|i| field[i])//change index to digit
-                .filter(|&digit| digit > 0)  //get existing values
-                .for_each(|digit|  drop(position_black_list.insert(digit)));
+            (row..row + 9)
+                .chain((column..90).step_by(10))
+                .map(|i| field[i]) //change index to digit
+                .filter(|&digit| digit > 0) //get existing values
+                .for_each(|digit| drop(position_black_list.insert(digit)));
 
             //filter out all digits from the positional blacklist
-            new_options = new_options.into_iter()
+            new_options = new_options
+                .into_iter()
                 .filter(|option| !position_black_list.contains(&option[index]))
                 .collect();
-        };
+        }
 
         //Update the blacklist if new unique values for one dimensional group are found
         if !self.is_already_in_black_list && new_options.len() > 1 {
             //get digits of first option
-            let check_digits: HashSet<usize> = new_options[0].iter()
-                .map(|&digit| digit)
-                .collect();
+            let check_digits: HashSet<usize> = new_options[0].iter().map(|&digit| digit).collect();
             //check if any of the other options contain any digit not in the first option
-            if !new_options.iter()
+            if !new_options
+                .iter()
                 .skip(1)
-                .any(|option| option.iter()
-                    .any(|digit| !check_digits.contains(digit))) {
+                .any(|option| option.iter().any(|digit| !check_digits.contains(digit)))
+            {
                 //all available options have the same digits
                 //update the blacklist
                 black_list.insert_position_black_list(&self.positions, &check_digits);
@@ -249,31 +267,55 @@ impl Group {
             }
         }
 
-        (new_options.len(), self.positions.len(), self.copy_with_new_options(&new_options, is_black_listed))
+        (
+            new_options.len(),
+            self.positions.len(),
+            self.copy_with_new_options(&new_options, is_black_listed),
+        )
     }
 
     /// Validates if candidate is a valid option for a KenKen group, i.e.
     /// contains no duplicates in the same row or column and
     /// fulfills the mathematical operation
     fn is_valid_option(&self, candidate: &Vec<usize>) -> bool {
-
-
         //check that no duplicates in line or column
-        if !(0..candidate.len()).fold(true, |r, i| r &&
-            ((0..candidate.len()).fold(0, |s, x|
-                if candidate[i] == candidate[x] && self.positions[i] / 10 == self.positions[x] / 10 { s + 1 } else { s }) == 1) &&
-            ((0..candidate.len()).fold(0, |s, x|
-                if candidate[i] == candidate[x] && self.positions[i] % 10 == self.positions[x] % 10 { s + 1 } else { s }) == 1)) { return false; }
+        if !(0..candidate.len()).fold(true, |r, i| {
+            r && ((0..candidate.len()).fold(0, |s, x| {
+                if candidate[i] == candidate[x] && self.positions[i] / 10 == self.positions[x] / 10
+                {
+                    s + 1
+                } else {
+                    s
+                }
+            }) == 1)
+                && ((0..candidate.len()).fold(0, |s, x| {
+                    if candidate[i] == candidate[x]
+                        && self.positions[i] % 10 == self.positions[x] % 10
+                    {
+                        s + 1
+                    } else {
+                        s
+                    }
+                }) == 1)
+        }) {
+            return false;
+        }
 
         //checks the numeric calculation
         match self.operation {
             '+' => self.result == candidate.iter().fold(0, |s, x| s + x),
             '*' => self.result == candidate.iter().fold(1, |s, x| s * x),
-            '-' => candidate.len() == 2 && self.result == (candidate[1] as i32 - candidate[0] as i32).abs() as usize,
-            ':' => candidate.len() == 2 && ((candidate[1] == (self.result * candidate[0])) || (candidate[0] == (self.result * candidate[1]))),
+            '-' => {
+                candidate.len() == 2
+                    && self.result == (candidate[1] as i32 - candidate[0] as i32).abs() as usize
+            }
+            ':' => {
+                candidate.len() == 2
+                    && ((candidate[1] == (self.result * candidate[0]))
+                        || (candidate[0] == (self.result * candidate[1])))
+            }
             'c' => candidate.len() == 1 && (candidate[0] == self.result),
-            _ => false
+            _ => false,
         }
     }
 }
-

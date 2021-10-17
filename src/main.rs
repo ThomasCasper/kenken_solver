@@ -65,15 +65,16 @@
 #[macro_use]
 extern crate derive_getters;
 
-use crate::kk_puzzle::Puzzle;
-use std::time::Instant;
-use std::io;
 use std::env;
+use std::io;
+use std::time::Instant;
 
-mod kk_group;
-mod kk_puzzle;
+use crate::kk_puzzle::Puzzle;
+
 mod kk_black_list;
+mod kk_group;
 mod kk_load;
+mod kk_puzzle;
 
 /// The main program coordinate the steps for the solution
 /// * ask user for the file name of the puzzle
@@ -83,13 +84,13 @@ mod kk_load;
 ///
 
 fn main() {
-
     //Retrieve filename from Args or as user input
     let args: Vec<String> = env::args().collect();
     let mut file_name = String::new();
     if args.len() == 1 {
         println!("Enter filename of puzzle: ");
-        io::stdin().read_line(&mut file_name)
+        io::stdin()
+            .read_line(&mut file_name)
             .expect("Could not read from standard input");
     } else {
         file_name = args[1].clone();
@@ -97,31 +98,28 @@ fn main() {
 
     //Load input and prepare puzzle
     let now = Instant::now();
-    let puzzle_string = kk_load::PuzzleAsString::new_from_file(&file_name)
-        .expect("Couldn't load file.");
+    let puzzle_string =
+        kk_load::PuzzleAsString::new_from_file(&file_name).expect("Couldn't load file.");
 
     println!("Starting to solve....\n{}", puzzle_string);
 
-    let puzzle = Puzzle::new_from_puzzle_file(puzzle_string)
-        .expect("Init from loaded file failed");
+    let puzzle = Puzzle::new_from_puzzle_file(puzzle_string).expect("Init from loaded file failed");
 
     //solve the puzzle & print out
     let solution_option = puzzle.solve();
     if solution_option.is_some() {
-        let solution=solution_option.unwrap();
+        let solution = solution_option.unwrap();
         println!("Solution: \n\n{}\n", solution);
     } else {
         println!("Error! Puzzle is not solvable!");
     }
 
-
     let duration = now.elapsed().as_millis();
-    println!("Total Duration : {:02}:{:02}:{:02}.{:03}",
-             duration / 3600000,
-             duration / 60000 % 60,
-             duration / 1000 % 60,
-             duration % 1000);
-
+    println!(
+        "Total Duration : {:02}:{:02}:{:02}.{:03}",
+        duration / 3600000,
+        duration / 60000 % 60,
+        duration / 1000 % 60,
+        duration % 1000
+    );
 }
-
-
