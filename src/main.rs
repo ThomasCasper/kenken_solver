@@ -66,12 +66,14 @@
 extern crate derive_getters;
 
 use std::env;
-use std::io;
 use std::time::Instant;
+use crate::kk_generate::GeneratedPuzzle;
+use crate::kk_load::PuzzleAsString;
 
 use crate::kk_puzzle::Puzzle;
 
 mod kk_black_list;
+mod kk_generate;
 mod kk_group;
 mod kk_load;
 mod kk_puzzle;
@@ -86,40 +88,100 @@ mod kk_puzzle;
 fn main() {
     //Retrieve filename from Args or as user input
     let args: Vec<String> = env::args().collect();
-    let mut file_name = String::new();
-    if args.len() == 1 {
-        println!("Enter filename of puzzle: ");
-        io::stdin()
-            .read_line(&mut file_name)
-            .expect("Could not read from standard input");
+
+
+    if args.len() < 2 {
+        help();
     } else {
-        file_name = args[1].clone();
+        match &args[1][0..] {
+            "solve" => solve(args),
+            "generate" => drop(generate(args)),
+            "gen_solve" => gen_solve(args),
+            _ => help(),
+        }
     }
 
-    //Load input and prepare puzzle
-    let now = Instant::now();
-    let puzzle_string =
-        kk_load::PuzzleAsString::new_from_file(&file_name).expect("Couldn't load file.");
+}
 
-    println!("Starting to solve....\n{}", puzzle_string);
+fn solve(args: Vec<String>) {
+     if args.len() != 3 {
+         help();
+     } else {
+         solve_kernel(PuzzleAsString::new_from_file(&args[2]).expect("Couldn't load file."));
+     }
+}
 
-    let puzzle = Puzzle::new_from_puzzle_file(puzzle_string).expect("Init from loaded file failed");
+fn solve_kernel(puzzle_string: PuzzleAsString) {
 
-    //solve the puzzle & print out
-    let solution_option = puzzle.solve();
-    if solution_option.is_some() {
-        let solution = solution_option.unwrap();
-        println!("Solution: \n\n{}\n", solution);
+        let now = Instant::now();
+
+
+            println!("Starting to solve....\n{}", puzzle_string);
+
+            let puzzle =
+                Puzzle::new_from_puzzle_file(puzzle_string).expect("Init from loaded file failed");
+
+            //solve the puzzle & print out
+            let solution_option = puzzle.solve();
+            if solution_option.is_some() {
+                let solution = solution_option.unwrap();
+                println!("Solution: \n\n{}\n", solution);
+            } else {
+                println!("Error! Puzzle is not solvable!");
+            }
+            let duration = now.elapsed().as_millis();
+            println!(
+                "Total Duration : {:02}:{:02}:{:02}.{:03}",
+                duration / 3600000,
+                duration / 60000 % 60,
+                duration / 1000 % 60,
+                duration % 1000
+            );
+
+
+}
+
+fn generate(args: Vec<String>) -> String {
+
+    let mut new_puzzle_string:String=String::new();
+    if args.len() == 5 {
+        let dimension:usize = args[2].parse().unwrap_or(100);
+        let difficulty:usize = args[3].parse().unwrap_or(100);
+        let operation_range:usize = args[4].parse().unwrap_or(100);
+        if dimension>=3 && dimension <= 9 &&
+            difficulty<=3 &&
+            operation_range <=1 {
+            //println!("Generate {}x{} KenKen....\n------------------", dimension, dimension);
+            let new_puzzle = GeneratedPuzzle::generate_kenken(dimension, difficulty, operation_range);
+            new_puzzle_string=new_puzzle.to_raw_string();
+            println!("{}",new_puzzle_string);
+        } else {
+            help();
+        }
     } else {
-        println!("Error! Puzzle is not solvable!");
+        help();
     }
 
-    let duration = now.elapsed().as_millis();
-    println!(
-        "Total Duration : {:02}:{:02}:{:02}.{:03}",
-        duration / 3600000,
-        duration / 60000 % 60,
-        duration / 1000 % 60,
-        duration % 1000
-    );
+    new_puzzle_string
+}
+
+fn gen_solve(args: Vec<String>) {
+
+    let puzzle_as_string=PuzzleAsString::new_from_raw_string(generate(args));
+    if puzzle_as_string.is_ok() {
+        solve_kernel(puzzle_as_string.unwrap());
+    }
+
+
+}
+
+fn help() {
+    println!("run mode [parameters] - starts KenKen-Solver in one of the following modes with the following parameters\n");
+    println!("Modes:");
+    println!("solve <path to puzzle> - prints the solution of the specified puzzle");
+    println!("generate <dimension> <difficulty> <operations_range> - generates a new KenKen-puzzle with the given parameters\n");
+    println!("  dimension [3-9] - the dimension/size of the KenKen");
+    println!("  difficulty [0-3] - the difficulty of the KenKen 0-easy to 3-expert");
+    println!("  operations_range [0,1] - the used operations in the KenKen 0-only addition, 1 - all operations");
+
 }

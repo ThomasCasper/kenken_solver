@@ -29,7 +29,7 @@ use crate::kk_black_list::BlackList;
 ///   (in this case the digits of this group are covered by this group and cannot be part of
 ///    valid options in other groups on the same row or column, depending on the direction of the
 ///    group.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Getters)]
 pub struct Group {
     result: usize,
     operation: char,
@@ -139,7 +139,7 @@ impl Group {
                 operation,
                 result,
                 options: Vec::new(),
-                is_already_in_black_list: false,
+                is_already_in_black_list: true,
                 //check if all positions are in one line or column, if yes
                 //the group is one dimensional
                 is_one_dimensional: positions
@@ -192,18 +192,13 @@ impl Group {
     /// no validation is done
     /// the return value indicates success (true) or failure (false),
     /// i.e. the option_nr is greater than the available options
-    pub fn apply_option_to_field(&self, field: &mut Vec<usize>, option_nr: usize) -> bool {
-        if option_nr < self.options.len() {
-            self.positions
-                .iter()
-                .zip(self.options[option_nr].iter())
-                .for_each(|(&position, &digit)| {
-                    field[position] = digit;
-                });
-            true
-        } else {
-            false
-        }
+    pub fn apply_option_to_field(&self, field: &mut Vec<usize>, option_index: usize) {
+        self.positions
+            .iter()
+            .zip(self.options[option_index].iter())
+            .for_each(|(&position, &digit)| {
+                field[position] = digit;
+            });
     }
 
     /// Validates the options of a group against a given field and blacklist
@@ -216,7 +211,7 @@ impl Group {
     ///  * the number of positions of this group
     ///  * a new group with the new valid options attached
 
-    pub fn get_valid_options(
+    pub fn get_updated_group(
         &self,
         field: &Vec<usize>,
         black_list: &mut BlackList,
@@ -252,19 +247,8 @@ impl Group {
 
         //Update the blacklist if new unique values for one dimensional group are found
         if !self.is_already_in_black_list && new_options.len() > 1 {
-            //get digits of first option
-            let check_digits: HashSet<usize> = new_options[0].iter().map(|&digit| digit).collect();
-            //check if any of the other options contain any digit not in the first option
-            if !new_options
-                .iter()
-                .skip(1)
-                .any(|option| option.iter().any(|digit| !check_digits.contains(digit)))
-            {
-                //all available options have the same digits
-                //update the blacklist
-                black_list.insert_position_black_list(&self.positions, &check_digits);
-                is_black_listed = true;
-            }
+            is_black_listed =
+                black_list.check_options_and_update_black_list(&self.positions, &new_options);
         }
 
         (
@@ -278,26 +262,20 @@ impl Group {
     /// contains no duplicates in the same row or column and
     /// fulfills the mathematical operation
     fn is_valid_option(&self, candidate: &Vec<usize>) -> bool {
+        let dimension = candidate.len();
+
         //check that no duplicates in line or column
-        if !(0..candidate.len()).fold(true, |r, i| {
-            r && ((0..candidate.len()).fold(0, |s, x| {
-                if candidate[i] == candidate[x] && self.positions[i] / 10 == self.positions[x] / 10
-                {
-                    s + 1
-                } else {
-                    s
-                }
-            }) == 1)
-                && ((0..candidate.len()).fold(0, |s, x| {
-                    if candidate[i] == candidate[x]
-                        && self.positions[i] % 10 == self.positions[x] % 10
-                    {
-                        s + 1
-                    } else {
-                        s
-                    }
-                }) == 1)
-        }) {
+        if (0..dimension - 1)
+            //get all tuples with different indizies, i.e. upper right corner of the cartesian product
+            .flat_map(move |pi| (pi + 1..dimension).map(move |di| (pi, di)))
+            //only check positions with the same digit
+            .filter(|(pi, di)| candidate[*pi] == candidate[*di])
+            //check that these positions are not on the same row or column
+            .any(|(pi, di)| {
+                self.positions[pi] / 10 == self.positions[di] / 10
+                    || self.positions[pi] % 10 == self.positions[di] % 10
+            })
+        {
             return false;
         }
 
@@ -306,16 +284,67 @@ impl Group {
             '+' => self.result == candidate.iter().fold(0, |s, x| s + x),
             '*' => self.result == candidate.iter().fold(1, |s, x| s * x),
             '-' => {
-                candidate.len() == 2
+                dimension == 2
                     && self.result == (candidate[1] as i32 - candidate[0] as i32).abs() as usize
             }
             ':' => {
-                candidate.len() == 2
+                dimension == 2
                     && ((candidate[1] == (self.result * candidate[0]))
                         || (candidate[0] == (self.result * candidate[1])))
             }
-            'c' => candidate.len() == 1 && (candidate[0] == self.result),
+            'c' => dimension == 1 && (candidate[0] == self.result),
             _ => false,
         }
     }
+}
+
+#[cfg(test)]
+mod kk_groups_tests {
+
+    use super::*;
+
+    #[test]
+    fn check_new_kenken() {
+        let group = Group::new_kenken(4, "6*10.11.20").unwrap();
+        assert_eq!(group.is_one_dimensional, false);
+        assert_eq!(group.is_already_in_black_list, true);
+        assert_eq!(group.positions, vec!(10, 11, 20));
+        assert_eq!(group.operation, '*');
+        assert_eq!(group.result, 6);
+        assert_eq!(group.options, vec!(vec!(1, 2, 3), vec!(1, 3, 2), vec!(2, 1, 3), vec!(2, 3, 1), vec!(3, 1, 2), vec!(3, 2, 1)));
+
+        let group = Group::new_kenken(5, "4-20.30").unwrap();
+        assert_eq!(group.is_one_dimensional, true);
+        assert_eq!(group.is_already_in_black_list, false);
+        assert_eq!(group.positions, vec!(20, 30));
+        assert_eq!(group.operation, '-');
+        assert_eq!(group.result, 4);
+        assert_eq!(group.options, vec!(vec!(1, 5), vec!(5,1)));
+
+        let group = Group::new_kenken(8, "21+41.42.43").unwrap();
+        assert_eq!(group.is_one_dimensional, true);
+        assert_eq!(group.is_already_in_black_list, false);
+        assert_eq!(group.positions, vec!(41, 42,43));
+        assert_eq!(group.operation, '+');
+        assert_eq!(group.result, 21);
+        assert_eq!(group.options, vec!(vec!(6, 7, 8), vec!(6,8,7), vec!(7,6,8), vec!(7,8,6), vec!(8,6,7), vec!(8,7,6)));
+
+        assert_eq!(Group::new_kenken(9,"22/.01.02").is_err(), true);
+    }
+
+    #[test]
+    fn check_new_sudoku() {
+        let positions:Vec<usize>=vec!(3,4);
+        let constants:HashSet<usize>=vec!(1,2,3,4,5,6,7).into_iter().collect();
+
+        let group=Group::new_sudoku(&positions,&constants).unwrap();
+        assert_eq!(group.is_one_dimensional, false);
+        assert_eq!(group.is_already_in_black_list, true);
+        assert_eq!(group.positions, vec!(3, 4));
+        assert_eq!(group.operation, 's');
+        assert_eq!(group.result, 0);
+        assert_eq!(group.options, vec!(vec!(8, 9), vec!(9,8)));
+
+    }
+
 }

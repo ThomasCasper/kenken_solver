@@ -21,6 +21,7 @@ impl PuzzleAsString {
         let mut puzzle_string: Vec<String> = raw_puzzle_string
             .split('\n')
             .map(|c| c.trim().to_string())
+            .filter(|line| !line.is_empty())
             .collect();
 
         //first line of the file is the description
