@@ -90,11 +90,11 @@ impl Puzzle {
             }
             //add a new group for the open positions
             if positions.len() > 0 {
-                let group = Group::new_sudoku(&positions, &constants);
-                if group.is_err() {
+                if let Ok(group) = Group::new_sudoku(&positions, &constants) {
+                    self.groups.push(group);
+                } else {
                     return Err(format!("Quadrant with no valid options found {}", quadrant));
                 }
-                self.groups.push(group.unwrap());
             }
         }
 

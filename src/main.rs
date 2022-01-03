@@ -163,8 +163,7 @@ fn solve_kernel(puzzle_string: PuzzleAsString) {
 
     //solve the puzzle & print out
     let solution_option = puzzle.solve();
-    if solution_option.is_some() {
-        let solution = solution_option.unwrap();
+    if let Some(solution) = solution_option {
         println!("Solution: \n\n{}\n", solution);
     } else {
         println!("Error! Puzzle is not solvable!");
@@ -181,8 +180,8 @@ fn solve_kernel(puzzle_string: PuzzleAsString) {
 
 fn gen_solve(gen_args: GenArgs) {
     let puzzle_as_string = PuzzleAsString::new_from_raw_string(gen_args.generate());
-    if puzzle_as_string.is_ok() {
-        solve_kernel(puzzle_as_string.unwrap());
+    if let Ok(puzzle_as_string) = puzzle_as_string {
+        solve_kernel(puzzle_as_string);
     }
 }
 
