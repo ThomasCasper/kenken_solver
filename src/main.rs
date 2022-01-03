@@ -137,9 +137,9 @@ fn solve_kernel(puzzle_string: PuzzleAsString) {
 fn generate(args: Vec<String>) -> String {
     let mut new_puzzle_string: String = String::new();
     if args.len() == 5 {
-        let dimension: usize = args[2].parse().unwrap_or(100);
-        let difficulty: usize = args[3].parse().unwrap_or(100);
-        let operation_range: usize = args[4].parse().unwrap_or(100);
+        let dimension: usize = args[2].parse().unwrap();
+        let difficulty: usize = args[3].parse().unwrap();
+        let operation_range: usize = args[4].parse().unwrap();
         if dimension >= 3 && dimension <= 9 && difficulty <= 3 && operation_range <= 1 {
             //println!("Generate {}x{} KenKen....\n------------------", dimension, dimension);
             let new_puzzle =
