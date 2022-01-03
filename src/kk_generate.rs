@@ -1,3 +1,5 @@
+use crate::GenArgs;
+
 use rand::prelude::*;
 use rand::thread_rng;
 use rand::Rng;
@@ -19,7 +21,7 @@ impl GeneratedPuzzle {
     /// * dimension [3-9] - dimension of the generated KenKen
     /// * difficulty [1-4] - difficulty of the generated Kenken, influences the group sizes
     /// * operations_range [1,2] - only addition (0) or all operations (1) used in the generated KenKen
-    pub fn generate_kenken(dimension: usize, difficulty: usize, operations_range: usize) -> Self {
+    pub fn generate_kenken(gen_args: &GenArgs) -> Self {
         //difficulty
         // 0 - easy    up to 9% 1x1fields - max 3-field groups
         // 1 - medium      up to 6% 1x1 fields
@@ -31,9 +33,9 @@ impl GeneratedPuzzle {
         // 1 - all operations +-*:
 
         let mut new_puzzle = GeneratedPuzzle {
-            dimension,
-            difficulty,
-            operations_range,
+            dimension: gen_args.dimension,
+            difficulty: gen_args.difficulty,
+            operations_range: gen_args.operation_range,
             solution: Vec::new(),
             groups: Vec::new(),
             operations: Vec::new(),

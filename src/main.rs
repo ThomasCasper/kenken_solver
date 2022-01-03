@@ -67,7 +67,7 @@ extern crate derive_getters;
 
 use crate::kk_generate::GeneratedPuzzle;
 use crate::kk_load::PuzzleAsString;
-use std::env;
+use std::env::{self, Args};
 use std::time::Instant;
 
 use crate::kk_puzzle::Puzzle;
@@ -87,26 +87,71 @@ mod kk_puzzle;
 
 fn main() {
     //Retrieve filename from Args or as user input
-    let args: Vec<String> = env::args().collect();
+    let mut args = env::args();
 
-    if args.len() < 2 {
-        help();
-    } else {
-        match &args[1][0..] {
-            "solve" => solve(args),
-            "generate" => drop(generate(args)),
-            "gen_solve" => gen_solve(args),
+    args.next(); // skip the program name
+
+    if let Some(arg) = args.next() {
+        match arg.as_ref() {
+            "solve" => solve(&arg),
+            "generate" => {
+                if let Some(gen_args) = GenArgs::new(args) {
+                    gen_args.generate();
+                } else {
+                    help();
+                }
+            }
+            "gen_solve" => {
+                if let Some(gen_args) = GenArgs::new(args) {
+                    gen_solve(gen_args);
+                } else {
+                    help();
+                }
+            }
             _ => help(),
         }
+    } else {
+        help();
     }
 }
 
-fn solve(args: Vec<String>) {
-    if args.len() != 3 {
-        help();
-    } else {
-        solve_kernel(PuzzleAsString::new_from_file(&args[2]).expect("Couldn't load file."));
+/// The arguments used to generate a KenKen puzzle.
+pub struct GenArgs {
+    dimension: usize,
+    difficulty: usize,
+    operation_range: usize,
+}
+
+impl GenArgs {
+    fn new(mut args: Args) -> Option<Self> {
+        Some(Self {
+            dimension: args.next()?.parse().ok()?,
+            difficulty: args.next()?.parse().ok()?,
+            operation_range: args.next()?.parse().ok()?,
+        })
     }
+
+    fn generate(&self) -> String {
+        let mut new_puzzle_string: String = String::new();
+        if self.dimension >= 3
+            && self.dimension <= 9
+            && self.difficulty <= 3
+            && self.operation_range <= 1
+        {
+            //println!("Generate {}x{} KenKen....\n------------------", dimension, dimension);
+            let new_puzzle = GeneratedPuzzle::generate_kenken(self);
+            new_puzzle_string = new_puzzle.to_raw_string();
+            println!("{}", new_puzzle_string);
+        } else {
+            help();
+        }
+
+        new_puzzle_string
+    }
+}
+
+fn solve(arg: &str) {
+    solve_kernel(PuzzleAsString::new_from_file(arg).expect("Couldn't load file."));
 }
 
 fn solve_kernel(puzzle_string: PuzzleAsString) {
@@ -134,30 +179,8 @@ fn solve_kernel(puzzle_string: PuzzleAsString) {
     );
 }
 
-fn generate(args: Vec<String>) -> String {
-    let mut new_puzzle_string: String = String::new();
-    if args.len() == 5 {
-        let dimension: usize = args[2].parse().unwrap();
-        let difficulty: usize = args[3].parse().unwrap();
-        let operation_range: usize = args[4].parse().unwrap();
-        if dimension >= 3 && dimension <= 9 && difficulty <= 3 && operation_range <= 1 {
-            //println!("Generate {}x{} KenKen....\n------------------", dimension, dimension);
-            let new_puzzle =
-                GeneratedPuzzle::generate_kenken(dimension, difficulty, operation_range);
-            new_puzzle_string = new_puzzle.to_raw_string();
-            println!("{}", new_puzzle_string);
-        } else {
-            help();
-        }
-    } else {
-        help();
-    }
-
-    new_puzzle_string
-}
-
-fn gen_solve(args: Vec<String>) {
-    let puzzle_as_string = PuzzleAsString::new_from_raw_string(generate(args));
+fn gen_solve(gen_args: GenArgs) {
+    let puzzle_as_string = PuzzleAsString::new_from_raw_string(gen_args.generate());
     if puzzle_as_string.is_ok() {
         solve_kernel(puzzle_as_string.unwrap());
     }
