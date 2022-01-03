@@ -58,7 +58,7 @@ impl Puzzle {
     fn initialize_sudoku_from_definition(
         &mut self,
         definition: &Vec<String>,
-    ) -> Result<&str, String> {
+    ) -> Result<(), String> {
         //derive field from input strings
         //remember for addressing each row contains 10 digits, hence the join with a 0
         //the length of the field must be 89 = 8*10+9
@@ -98,13 +98,13 @@ impl Puzzle {
             }
         }
 
-        Ok("ok")
+        Ok(())
     }
 
     fn initialize_kenken_from_definition(
         &mut self,
         puzzle_string_vector: &Vec<String>,
-    ) -> Result<&str, String> {
+    ) -> Result<(), String> {
         for group_as_string in puzzle_string_vector {
             self.groups
                 .push(Group::new_kenken(self.dimension, group_as_string)?);
@@ -120,7 +120,7 @@ impl Puzzle {
             self.groups.push(c.unwrap()); //add best group to groups
         }
 
-        Ok("ok")
+        Ok(())
     }
 
     /// Validates the groups of a puzzle against a given field

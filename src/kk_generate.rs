@@ -85,7 +85,7 @@ impl GeneratedPuzzle {
     fn add_groups(&mut self) {
         let mut rng = thread_rng();
         let dim = self.dimension;
-        let mut group_field: Vec<usize> = vec![0; 90];
+        let mut group_field = [0; 90];
         let mut groups: Vec<Vec<usize>> = vec![Vec::<usize>::new(); dim * dim];
 
         //fill initial field and groups with 1x1 fields
