@@ -58,7 +58,7 @@ impl Puzzle {
     fn initialize_sudoku_from_definition(
         &mut self,
         definition: &Vec<String>,
-    ) -> Result<&str, String> {
+    ) -> Result<(), String> {
         //derive field from input strings
         //remember for addressing each row contains 10 digits, hence the join with a 0
         //the length of the field must be 89 = 8*10+9
@@ -90,21 +90,21 @@ impl Puzzle {
             }
             //add a new group for the open positions
             if positions.len() > 0 {
-                let group = Group::new_sudoku(&positions, &constants);
-                if group.is_err() {
+                if let Ok(group) = Group::new_sudoku(&positions, &constants) {
+                    self.groups.push(group);
+                } else {
                     return Err(format!("Quadrant with no valid options found {}", quadrant));
                 }
-                self.groups.push(group.unwrap());
             }
         }
 
-        Ok("ok")
+        Ok(())
     }
 
     fn initialize_kenken_from_definition(
         &mut self,
         puzzle_string_vector: &Vec<String>,
-    ) -> Result<&str, String> {
+    ) -> Result<(), String> {
         for group_as_string in puzzle_string_vector {
             self.groups
                 .push(Group::new_kenken(self.dimension, group_as_string)?);
@@ -120,7 +120,7 @@ impl Puzzle {
             self.groups.push(c.unwrap()); //add best group to groups
         }
 
-        Ok("ok")
+        Ok(())
     }
 
     /// Validates the groups of a puzzle against a given field
@@ -144,7 +144,6 @@ impl Puzzle {
         let mut min_opt_pos: usize = 1;
 
         while index < new_groups.len() {
-
             let (opt_cnt, group_pos, valid_group) = new_groups
                 .remove(index)
                 .get_updated_group(&new_field.field, &mut new_field.black_list);
@@ -185,7 +184,7 @@ impl Puzzle {
         }
     }
 
-    pub fn set_option_for_group(&mut self, group: &Group, option_index: usize)  {
+    pub fn set_option_for_group(&mut self, group: &Group, option_index: usize) {
         group.apply_option_to_field(&mut self.field, option_index)
     }
 
@@ -301,7 +300,6 @@ mod kk_group_tests {
         let mut new_field = new_field_option.unwrap();
 
         new_field.set_option_for_group(&next_group_option.unwrap(), 0);
-
 
         let (new_field_option, next_group_option) = new_field.get_next_solution_step();
         //solution found
