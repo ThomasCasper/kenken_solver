@@ -51,8 +51,8 @@ impl GeneratedPuzzle {
     /// which could be saved as an input file for the KenKen solver
 
     pub fn to_raw_string(&self) -> String {
-        let difficulty_names = vec!["easy", "medium", "hard", "expert"];
-        let operation_names = vec!["with only addition", "with all operations"];
+        let difficulty_names = ["easy", "medium", "hard", "expert"];
+        let operation_names = ["with only addition", "with all operations"];
 
         let mut groups_string = String::new();
 
