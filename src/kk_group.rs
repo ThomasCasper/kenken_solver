@@ -311,7 +311,17 @@ mod kk_groups_tests {
         assert_eq!(group.positions, vec!(10, 11, 20));
         assert_eq!(group.operation, '*');
         assert_eq!(group.result, 6);
-        assert_eq!(group.options, vec!(vec!(1, 2, 3), vec!(1, 3, 2), vec!(2, 1, 3), vec!(2, 3, 1), vec!(3, 1, 2), vec!(3, 2, 1)));
+        assert_eq!(
+            group.options,
+            vec!(
+                vec!(1, 2, 3),
+                vec!(1, 3, 2),
+                vec!(2, 1, 3),
+                vec!(2, 3, 1),
+                vec!(3, 1, 2),
+                vec!(3, 2, 1)
+            )
+        );
 
         let group = Group::new_kenken(5, "4-20.30").unwrap();
         assert_eq!(group.is_one_dimensional, true);
@@ -319,32 +329,40 @@ mod kk_groups_tests {
         assert_eq!(group.positions, vec!(20, 30));
         assert_eq!(group.operation, '-');
         assert_eq!(group.result, 4);
-        assert_eq!(group.options, vec!(vec!(1, 5), vec!(5,1)));
+        assert_eq!(group.options, vec!(vec!(1, 5), vec!(5, 1)));
 
         let group = Group::new_kenken(8, "21+41.42.43").unwrap();
         assert_eq!(group.is_one_dimensional, true);
         assert_eq!(group.is_already_in_black_list, false);
-        assert_eq!(group.positions, vec!(41, 42,43));
+        assert_eq!(group.positions, vec!(41, 42, 43));
         assert_eq!(group.operation, '+');
         assert_eq!(group.result, 21);
-        assert_eq!(group.options, vec!(vec!(6, 7, 8), vec!(6,8,7), vec!(7,6,8), vec!(7,8,6), vec!(8,6,7), vec!(8,7,6)));
+        assert_eq!(
+            group.options,
+            vec!(
+                vec!(6, 7, 8),
+                vec!(6, 8, 7),
+                vec!(7, 6, 8),
+                vec!(7, 8, 6),
+                vec!(8, 6, 7),
+                vec!(8, 7, 6)
+            )
+        );
 
-        assert_eq!(Group::new_kenken(9,"22/.01.02").is_err(), true);
+        assert_eq!(Group::new_kenken(9, "22/.01.02").is_err(), true);
     }
 
     #[test]
     fn check_new_sudoku() {
-        let positions:Vec<usize>=vec!(3,4);
-        let constants:HashSet<usize>=vec!(1,2,3,4,5,6,7).into_iter().collect();
+        let positions: Vec<usize> = vec![3, 4];
+        let constants: HashSet<usize> = vec![1, 2, 3, 4, 5, 6, 7].into_iter().collect();
 
-        let group=Group::new_sudoku(&positions,&constants).unwrap();
+        let group = Group::new_sudoku(&positions, &constants).unwrap();
         assert_eq!(group.is_one_dimensional, false);
         assert_eq!(group.is_already_in_black_list, true);
         assert_eq!(group.positions, vec!(3, 4));
         assert_eq!(group.operation, 's');
         assert_eq!(group.result, 0);
-        assert_eq!(group.options, vec!(vec!(8, 9), vec!(9,8)));
-
+        assert_eq!(group.options, vec!(vec!(8, 9), vec!(9, 8)));
     }
-
 }

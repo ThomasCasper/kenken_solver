@@ -144,7 +144,6 @@ impl Puzzle {
         let mut min_opt_pos: usize = 1;
 
         while index < new_groups.len() {
-
             let (opt_cnt, group_pos, valid_group) = new_groups
                 .remove(index)
                 .get_updated_group(&new_field.field, &mut new_field.black_list);
@@ -185,7 +184,7 @@ impl Puzzle {
         }
     }
 
-    pub fn set_option_for_group(&mut self, group: &Group, option_index: usize)  {
+    pub fn set_option_for_group(&mut self, group: &Group, option_index: usize) {
         group.apply_option_to_field(&mut self.field, option_index)
     }
 
@@ -301,7 +300,6 @@ mod kk_group_tests {
         let mut new_field = new_field_option.unwrap();
 
         new_field.set_option_for_group(&next_group_option.unwrap(), 0);
-
 
         let (new_field_option, next_group_option) = new_field.get_next_solution_step();
         //solution found

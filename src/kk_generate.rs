@@ -5,24 +5,21 @@ use rand::Rng;
 #[derive(Debug, Clone)]
 pub struct GeneratedPuzzle {
     dimension: usize,
-    difficulty:usize,
+    difficulty: usize,
     operations_range: usize,
     solution: Vec<usize>,
     groups: Vec<Vec<usize>>,
     operations: Vec<char>,
-    results:Vec<usize>
+    results: Vec<usize>,
 }
 
-
 impl GeneratedPuzzle {
-
     /// generates a new kenken with a given dimension, difficulty and operations range
     /// Input:
     /// * dimension [3-9] - dimension of the generated KenKen
     /// * difficulty [1-4] - difficulty of the generated Kenken, influences the group sizes
     /// * operations_range [1,2] - only addition (0) or all operations (1) used in the generated KenKen
     pub fn generate_kenken(dimension: usize, difficulty: usize, operations_range: usize) -> Self {
-
         //difficulty
         // 0 - easy    up to 9% 1x1fields - max 3-field groups
         // 1 - medium      up to 6% 1x1 fields
@@ -40,7 +37,7 @@ impl GeneratedPuzzle {
             solution: Vec::new(),
             groups: Vec::new(),
             operations: Vec::new(),
-            results: Vec::new()
+            results: Vec::new(),
         };
 
         new_puzzle.add_groups();
@@ -53,41 +50,41 @@ impl GeneratedPuzzle {
     /// returns the generated puzzle as a raw string,
     /// which could be saved as an input file for the KenKen solver
 
-    pub fn to_raw_string(&self) -> String{
-
+    pub fn to_raw_string(&self) -> String {
         let difficulty_names = vec!["easy", "medium", "hard", "expert"];
         let operation_names = vec!["with only addition", "with all operations"];
 
-        let mut groups_string=String::new();
+        let mut groups_string = String::new();
 
         for group_index in 0..self.groups.len() {
-            let position_string:String = self.groups[group_index].iter()
-                .map(|pos| format!(".{:02}",pos))
+            let position_string: String = self.groups[group_index]
+                .iter()
+                .map(|pos| format!(".{:02}", pos))
                 .collect();
-            groups_string = format!("{}{}{}{}\n", groups_string,
-                                    self.results[group_index],
-                                    self.operations[group_index],
-                                    position_string.chars().skip(1).collect::<String>());
-
+            groups_string = format!(
+                "{}{}{}{}\n",
+                groups_string,
+                self.results[group_index],
+                self.operations[group_index],
+                position_string.chars().skip(1).collect::<String>()
+            );
         }
 
-      format!("{} Kenken of dimension {} x {} {}\nKenKen\n{}",
-                difficulty_names[self.difficulty],
-                    self.dimension,
-                    self.dimension,
-                    operation_names[self.operations_range],
-                groups_string
-
+        format!(
+            "{} Kenken of dimension {} x {} {}\nKenKen\n{}",
+            difficulty_names[self.difficulty],
+            self.dimension,
+            self.dimension,
+            operation_names[self.operations_range],
+            groups_string
         )
     }
 
-     fn add_groups(&mut self) {
-
+    fn add_groups(&mut self) {
         let mut rng = thread_rng();
-         let dim=self.dimension;
+        let dim = self.dimension;
         let mut group_field: Vec<usize> = vec![0; 90];
         let mut groups: Vec<Vec<usize>> = vec![Vec::<usize>::new(); dim * dim];
-
 
         //fill initial field and groups with 1x1 fields
         (0..dim * dim)
@@ -160,30 +157,28 @@ impl GeneratedPuzzle {
             }
         }
         self.groups.sort();
-
     }
 
     /*
-    fn check_groups(&self) -> bool {
-        let mut group_field: Vec<usize> = vec![0; 90];
+        fn check_groups(&self) -> bool {
+            let mut group_field: Vec<usize> = vec![0; 90];
 
 
 
-                        is_one_dimensional: positions
-                    .iter()
-                    .map(|p| p / 10) //row
-                    .fold(true, |s, p| s && positions[0] / 10 == p)
-                    || positions
+                            is_one_dimensional: positions
                         .iter()
-                        .map(|p| p % 10) //column
-                        .fold(true, |s, p| s && positions[0] % 10 == p),
+                        .map(|p| p / 10) //row
+                        .fold(true, |s, p| s && positions[0] / 10 == p)
+                        || positions
+                            .iter()
+                            .map(|p| p % 10) //column
+                            .fold(true, |s, p| s && positions[0] % 10 == p),
 
-    }
-*/
+        }
+    */
     fn add_solution(&mut self) {
-
         let mut rng = thread_rng();
-        let dim=self.dimension;
+        let dim = self.dimension;
 
         let mut base_field: Vec<usize> = (0..9)
             .flat_map(|shift| {
@@ -214,15 +209,17 @@ impl GeneratedPuzzle {
                 });
         }
 
-        self.solution=base_field;
+        self.solution = base_field;
     }
 
     fn add_operations(&mut self) {
-
         let mut rng = thread_rng();
 
         for group in &self.groups {
-            let digits: Vec<usize> = group.iter().map(|&position| self.solution[position]).collect();
+            let digits: Vec<usize> = group
+                .iter()
+                .map(|&position| self.solution[position])
+                .collect();
             let mut operation: char = '+';
             if digits.len() == 1 {
                 operation = 'c'
@@ -269,9 +266,6 @@ impl GeneratedPuzzle {
             };
 
             self.results.push(result);
-
         }
-
     }
-
 }

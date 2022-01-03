@@ -65,10 +65,10 @@
 #[macro_use]
 extern crate derive_getters;
 
-use std::env;
-use std::time::Instant;
 use crate::kk_generate::GeneratedPuzzle;
 use crate::kk_load::PuzzleAsString;
+use std::env;
+use std::time::Instant;
 
 use crate::kk_puzzle::Puzzle;
 
@@ -89,7 +89,6 @@ fn main() {
     //Retrieve filename from Args or as user input
     let args: Vec<String> = env::args().collect();
 
-
     if args.len() < 2 {
         help();
     } else {
@@ -100,61 +99,53 @@ fn main() {
             _ => help(),
         }
     }
-
 }
 
 fn solve(args: Vec<String>) {
-     if args.len() != 3 {
-         help();
-     } else {
-         solve_kernel(PuzzleAsString::new_from_file(&args[2]).expect("Couldn't load file."));
-     }
+    if args.len() != 3 {
+        help();
+    } else {
+        solve_kernel(PuzzleAsString::new_from_file(&args[2]).expect("Couldn't load file."));
+    }
 }
 
 fn solve_kernel(puzzle_string: PuzzleAsString) {
+    let now = Instant::now();
 
-        let now = Instant::now();
+    println!("Starting to solve....\n{}", puzzle_string);
 
+    let puzzle = Puzzle::new_from_puzzle_file(puzzle_string).expect("Init from loaded file failed");
 
-            println!("Starting to solve....\n{}", puzzle_string);
-
-            let puzzle =
-                Puzzle::new_from_puzzle_file(puzzle_string).expect("Init from loaded file failed");
-
-            //solve the puzzle & print out
-            let solution_option = puzzle.solve();
-            if solution_option.is_some() {
-                let solution = solution_option.unwrap();
-                println!("Solution: \n\n{}\n", solution);
-            } else {
-                println!("Error! Puzzle is not solvable!");
-            }
-            let duration = now.elapsed().as_millis();
-            println!(
-                "Total Duration : {:02}:{:02}:{:02}.{:03}",
-                duration / 3600000,
-                duration / 60000 % 60,
-                duration / 1000 % 60,
-                duration % 1000
-            );
-
-
+    //solve the puzzle & print out
+    let solution_option = puzzle.solve();
+    if solution_option.is_some() {
+        let solution = solution_option.unwrap();
+        println!("Solution: \n\n{}\n", solution);
+    } else {
+        println!("Error! Puzzle is not solvable!");
+    }
+    let duration = now.elapsed().as_millis();
+    println!(
+        "Total Duration : {:02}:{:02}:{:02}.{:03}",
+        duration / 3600000,
+        duration / 60000 % 60,
+        duration / 1000 % 60,
+        duration % 1000
+    );
 }
 
 fn generate(args: Vec<String>) -> String {
-
-    let mut new_puzzle_string:String=String::new();
+    let mut new_puzzle_string: String = String::new();
     if args.len() == 5 {
-        let dimension:usize = args[2].parse().unwrap_or(100);
-        let difficulty:usize = args[3].parse().unwrap_or(100);
-        let operation_range:usize = args[4].parse().unwrap_or(100);
-        if dimension>=3 && dimension <= 9 &&
-            difficulty<=3 &&
-            operation_range <=1 {
+        let dimension: usize = args[2].parse().unwrap_or(100);
+        let difficulty: usize = args[3].parse().unwrap_or(100);
+        let operation_range: usize = args[4].parse().unwrap_or(100);
+        if dimension >= 3 && dimension <= 9 && difficulty <= 3 && operation_range <= 1 {
             //println!("Generate {}x{} KenKen....\n------------------", dimension, dimension);
-            let new_puzzle = GeneratedPuzzle::generate_kenken(dimension, difficulty, operation_range);
-            new_puzzle_string=new_puzzle.to_raw_string();
-            println!("{}",new_puzzle_string);
+            let new_puzzle =
+                GeneratedPuzzle::generate_kenken(dimension, difficulty, operation_range);
+            new_puzzle_string = new_puzzle.to_raw_string();
+            println!("{}", new_puzzle_string);
         } else {
             help();
         }
@@ -166,13 +157,10 @@ fn generate(args: Vec<String>) -> String {
 }
 
 fn gen_solve(args: Vec<String>) {
-
-    let puzzle_as_string=PuzzleAsString::new_from_raw_string(generate(args));
+    let puzzle_as_string = PuzzleAsString::new_from_raw_string(generate(args));
     if puzzle_as_string.is_ok() {
         solve_kernel(puzzle_as_string.unwrap());
     }
-
-
 }
 
 fn help() {
@@ -183,5 +171,4 @@ fn help() {
     println!("  dimension [3-9] - the dimension/size of the KenKen");
     println!("  difficulty [0-3] - the difficulty of the KenKen 0-easy to 3-expert");
     println!("  operations_range [0,1] - the used operations in the KenKen 0-only addition, 1 - all operations");
-
 }
