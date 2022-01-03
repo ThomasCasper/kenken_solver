@@ -133,7 +133,7 @@ impl Group {
                 < usize::MAX
         {
             let result = positions.remove(0);
-            let operation = vec!['c', '+', '-', '*', ':'][positions.remove(0)];
+            let operation = ['c', '+', '-', '*', ':'][positions.remove(0)];
 
             let mut new_group = Group {
                 operation,
