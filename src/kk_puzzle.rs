@@ -1,38 +1,41 @@
 //! kk_puzzle is part of kenken_solve and provides the representation of the puzzle to be solved
 //!
-//! A puzzle consist of
+//! A puzzle consists of
 //!  * the type of the puzzle, i.e. KenKen or Sudoku
 //!  * the dimension (3 to 9) of the puzzle (for sudoku this is always 9)
 //!  * a field, representing a representation of all set group-solutions
 //!  * a list of undecided groups (with more than one option left)
-//!  * a blacklist, holding blacklisted digits for each field position
+//!  * a blocklist, holding blocklisted digits for each field position
 //!
 use std::collections::HashSet;
 use std::fmt;
+use colored::*;
 
-use crate::kk_black_list::BlackList;
+use crate::kk_block_list::BlockList;
 use crate::kk_group::Group;
 use crate::kk_load::GameType;
 use crate::kk_load::GameType::Sudoku;
 use crate::kk_load::PuzzleAsString;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone,Getters)]
 pub struct Puzzle {
     game_type: GameType,
     dimension: usize,
-    field: Vec<usize>,
-    black_list: BlackList,
+    normal_group_direction:bool,
+    solution: Vec<usize>,
+    block_list: BlockList,
     groups: Vec<Group>,
 }
 
 impl Puzzle {
-    /// Copies a puzzle without the groups, i.e. the list of groups of the new puzzle is empty
+    /// Copies a puzzle without the groups, i.e., the group list of the new puzzle is empty
     pub fn copy_without_groups(old_field: &Puzzle) -> Self {
         Puzzle {
             game_type: old_field.game_type,
             dimension: old_field.dimension,
-            field: old_field.field.clone(),
-            black_list: old_field.black_list.clone(),
+            normal_group_direction:old_field.normal_group_direction,
+            solution: old_field.solution.clone(),
+            block_list: old_field.block_list.clone(),
             groups: Vec::new(),
         }
     }
@@ -41,8 +44,9 @@ impl Puzzle {
         let mut new_puzzle = Puzzle {
             game_type: *puzzle_file.game_type(),
             dimension: puzzle_file.get_dimension()?,
-            field: vec![0; 90],
-            black_list: BlackList::new(),
+            normal_group_direction: *puzzle_file.normal_group_direction(),
+            solution: vec![0; 90],
+            block_list: BlockList::new(),
             groups: Vec::new(),
         };
 
@@ -62,15 +66,15 @@ impl Puzzle {
         //derive field from input strings
         //remember for addressing each row contains 10 digits, hence the join with a 0
         //the length of the field must be 89 = 8*10+9
-        self.field = definition
+        self.solution = definition
             .join("0")
             .replace(".", "")
             .replace("-", "0")
             .chars()
             .map(|c| c.to_digit(10).unwrap() as usize)
             .collect();
-        if self.field.len() != 89 {
-            return Err(format!("No valid Sudoku found.\n{:?}", self.field));
+        if self.solution.len() != 89 {
+            return Err(format!("No valid Sudoku found.\n{:?}", self.solution));
         };
 
         for quadrant in 0..9 {
@@ -80,12 +84,12 @@ impl Puzzle {
             for i in 0..9 {
                 let pos: usize =
                     (3 * (quadrant / 3) + (i / 3)) * 10 + (3 * (quadrant % 3) + (i % 3));
-                if self.field[pos] == 0 {
-                    //open field for group
+                if self.solution[pos] == 0 {
+                    //open field for the group
                     positions.push(pos);
                 } else {
                     //found constant
-                    constants.insert(self.field[pos]);
+                    constants.insert(self.solution[pos]);
                 }
             }
             //add a new group for the open positions
@@ -93,8 +97,9 @@ impl Puzzle {
                 let group = Group::new_sudoku(&positions, &constants);
                 if group.is_err() {
                     return Err(format!("Quadrant with no valid options found {}", quadrant));
+                } else {
+                    self.groups.push(group?);
                 }
-                self.groups.push(group.unwrap());
             }
         }
 
@@ -107,17 +112,17 @@ impl Puzzle {
     ) -> Result<&str, String> {
         for group_as_string in puzzle_string_vector {
             self.groups
-                .push(Group::new_kenken(self.dimension, group_as_string)?);
+                .push(Group::new_kenken(self.dimension, group_as_string,self.normal_group_direction)?);
         }
 
-        //initialize blacklist and apply first unique digits
+        //initialize blocklist and apply first unique digits
         let (o_field, c) = self.get_next_solution_step();
 
         if let Some(of) = o_field {
-            self.field = of.field.clone();
-            self.black_list = of.black_list.clone();
+            self.solution = of.solution.clone();
+            self.block_list = of.block_list.clone();
             self.groups = of.groups.clone();
-            self.groups.push(c.unwrap()); //add best group to groups
+            self.groups.push(c.unwrap()); //add the best group to groups
         }
 
         Ok("ok")
@@ -126,11 +131,11 @@ impl Puzzle {
     /// Validates the groups of a puzzle against a given field
     /// adds all options with no choices left, i.e. only one option was available
     /// returns
-    /// * an option of new puzlle with all undecided groups with the still available options per group,
+    /// * an option of new puzzle with all undecided groups with the still available options per group,
     /// * an Option of the group for the next try, i.e.
     ///   with the best ratio between available options per size of the group positions
     ///   the group for the next try is not part of the returned new field
-    /// if no new Puzzle is returned, the current puzzle is not solveable, i.e. error and next try
+    /// if no new Puzzle is returned, the current puzzle is not solvable, i.e. error and next try
     /// if no new option is returned, the puzzle is solved
 
     pub fn get_next_solution_step(&self) -> (Option<Self>, Option<Group>) {
@@ -144,19 +149,18 @@ impl Puzzle {
         let mut min_opt_pos: usize = 1;
 
         while index < new_groups.len() {
-
             let (opt_cnt, group_pos, valid_group) = new_groups
                 .remove(index)
-                .get_updated_group(&new_field.field, &mut new_field.black_list);
+                .get_updated_group(&new_field.solution, &mut new_field.block_list);
 
             match opt_cnt {
-                // no valid options left => Error and next try
+                // no valid options left ⇒ Error and next try
                 0 => {
                     return (None, None);
                 }
-                // only 1 option left => Add option (first) to field and restart update
+                // only 1 option left ⇒ Add option (first) to field and restart update
                 1 => {
-                    valid_group.apply_option_to_field(&mut new_field.field, 0); //{
+                    valid_group.apply_option_to_field(&mut new_field.solution, 0); //{
                     min_opt = 1000;
                     min_opt_pos = 1;
                     index = 0;
@@ -185,11 +189,11 @@ impl Puzzle {
         }
     }
 
-    pub fn set_option_for_group(&mut self, group: &Group, option_index: usize)  {
-        group.apply_option_to_field(&mut self.field, option_index)
+    pub fn set_option_for_group(&mut self, group: &Group, option_index: usize) {
+        group.apply_option_to_field(&mut self.solution, option_index)
     }
 
-    /// KenKen_solve is the recursive try and error solver for the puzzles
+    /// KenKen_solve is the recursive trial and error solver for the puzzles
     /// it accepts the iteration-depth and the current state of the solved puzzle
     ///
     /// the solution is done in the following steps
@@ -205,7 +209,7 @@ impl Puzzle {
 
         if next_group_option.is_none() {
             // if no next option available recursion ends
-            // if field is None there was an error
+            // if field is None, there was an error
             // otherwise field contains the found solution
             return updated_field_option;
         };
@@ -235,7 +239,7 @@ impl fmt::Display for Puzzle {
         let display: String = (0..89)
             .map(|index| {
                 if (index % 10) < dimension && (index / 10) < dimension {
-                    self.field[index].to_string()
+                    self.solution[index].to_string()
                 } else if (index % 10) == dimension && (index / 10) < dimension {
                     "\n".to_string()
                 } else {
@@ -244,7 +248,7 @@ impl fmt::Display for Puzzle {
             })
             .collect();
 
-        write!(f, "{}", display)
+        write!(f, "{}", display.blue())
     }
 }
 
@@ -272,16 +276,16 @@ mod kk_group_tests {
         assert_eq!(kenken.game_type, KenKen);
         assert_eq!(kenken.dimension, 4);
         assert_eq!(kenken.groups.len(), 6);
-        assert_eq!(kenken.field.len(), 90);
+        assert_eq!(kenken.solution.len(), 90);
 
         //check apply option_to field
         let group = kenken.groups.remove(1);
         kenken.set_option_for_group(&group, 0);
-        assert_eq!(kenken.field[0], 0);
-        assert_eq!(kenken.field[33], 0);
-        assert_eq!(kenken.field[2], 1);
-        assert_eq!(kenken.field[3], 3);
-        assert_eq!(kenken.field[12], 4);
+        assert_eq!(kenken.solution[0], 0);
+        assert_eq!(kenken.solution[33], 0);
+        assert_eq!(kenken.solution[2], 1);
+        assert_eq!(kenken.solution[3], 3);
+        assert_eq!(kenken.solution[12], 4);
         kenken.set_option_for_group(&group, 1);
 
         //check get new valid field
@@ -302,7 +306,6 @@ mod kk_group_tests {
 
         new_field.set_option_for_group(&next_group_option.unwrap(), 0);
 
-
         let (new_field_option, next_group_option) = new_field.get_next_solution_step();
         //solution found
         assert_eq!(new_field_option.is_some(), true);
@@ -311,7 +314,7 @@ mod kk_group_tests {
         //check that found solution is correct
         let found_solution: Vec<usize> = new_field_option
             .unwrap()
-            .field
+            .solution
             .into_iter()
             .filter(|&d| d > 0)
             .collect();
@@ -342,14 +345,14 @@ mod kk_group_tests {
         assert_eq!(kenken.game_type, KenKen);
         assert_eq!(kenken.dimension, 9);
         assert_eq!(kenken.groups.len(), 28);
-        assert_eq!(kenken.field.len(), 90);
+        assert_eq!(kenken.solution.len(), 90);
 
         let solution_option = kenken.solve();
         assert_eq!(solution_option.is_some(), true);
 
         let solution = solution_option.unwrap();
         let found_solution: Vec<usize> = solution
-            .field
+            .solution
             .iter()
             .filter(|&d| d > &0)
             .map(|&d| d)

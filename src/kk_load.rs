@@ -12,12 +12,13 @@ pub enum GameType {
 #[derive(Debug, Clone, Getters)]
 pub struct PuzzleAsString {
     game_type: GameType,
+    normal_group_direction:bool,
     description: String,
     puzzle_string: Vec<String>,
 }
 
 impl PuzzleAsString {
-    pub fn new_from_raw_string(raw_puzzle_string: String) -> Result<Self, String> {
+    pub fn new_from_raw_string(raw_puzzle_string: String, normal_group_direction:bool) -> Result<Self, String> {
         let mut puzzle_string: Vec<String> = raw_puzzle_string
             .split('\n')
             .map(|c| c.trim().to_string())
@@ -36,6 +37,7 @@ impl PuzzleAsString {
 
         Ok(PuzzleAsString {
             game_type,
+            normal_group_direction,
             description,
             puzzle_string,
         })
@@ -52,7 +54,7 @@ impl PuzzleAsString {
             }
         };
 
-        PuzzleAsString::new_from_raw_string(raw_puzzle_string)
+        PuzzleAsString::new_from_raw_string(raw_puzzle_string,true)
     }
 
     pub fn get_dimension(&self) -> Result<usize, String> {
